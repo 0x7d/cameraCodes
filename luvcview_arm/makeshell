@@ -1,0 +1,4 @@
+#!/bin/sh
+mipsel-linux-gcc -o luvcview luvcview.c v4l2uvc.c utils.c avilib.c color.c
+rm -f /var/lib/tftpboot/luvcview 
+cp luvcview /var/lib/tftpboot/
