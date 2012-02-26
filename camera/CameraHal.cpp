@@ -1409,10 +1409,6 @@ exit:
 		unsigned int required_buffer_count;
 		unsigned int max_queueble_buffers;
 
-#if PPM_INSTRUMENTATION || PPM_INSTRUMENTATION_ABS
-		gettimeofday(&mStartPreview, NULL);
-#endif
-
 		LOG_FUNCTION_NAME;
 
 		if ( mPreviewEnabled ){

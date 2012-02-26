@@ -374,7 +374,7 @@ namespace android {
 
 			ret = ioctl (mCameraHandle, VIDIOC_STREAMON, &bufType);
 			if (ret < 0) {
-				LOGE("StartStreaming: Unable to start capture: %s", strerror(errno));
+				LOGE("Unable to on streaming %s", strerror(errno));
 				return ret;
 			}
 
@@ -396,46 +396,49 @@ namespace android {
 
 	status_t V4LCameraAdapter::stopPreview()
 	{
+		LOG_FUNCTION_NAME;
+
 		enum v4l2_buf_type bufType;
 		int ret = NO_ERROR;
 
 		Mutex::Autolock lock(mPreviewBufsLock);
 
 		if(!mPreviewing)
-		{
 			return NO_INIT;
-		}
 
+
+		nQueued = 0;
+		nDequeued = 0;
+		mPreviewing = false;
+		
+		LOGE("StopStreaming isStreaming %d\n", mVideoInfo->isStreaming);
 		if (mVideoInfo->isStreaming) {
 			bufType = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 
 			ret = ioctl (mCameraHandle, VIDIOC_STREAMOFF, &bufType);
 			if (ret < 0) {
-				LOGE("StopStreaming: Unable to stop capture: %s", strerror(errno));
+				LOGE("Unable to off streaming %s", strerror(errno));
 				return ret;
 			}
-
 			mVideoInfo->isStreaming = false;
 		}
 
 		mVideoInfo->buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 		mVideoInfo->buf.memory = V4L2_MEMORY_MMAP;
 
-		nQueued = 0;
-		nDequeued = 0;
-
 		/* Unmap buffers */
-		for (int i = 0; i < mPreviewBufferCount; i++)
+		for (int i = 0; i < mPreviewBufferCount; i++){
 			if (munmap(mVideoInfo->mem[i], mVideoInfo->buf.length) < 0)
 				LOGE("Unmap failed");
+		}
 
 		mPreviewBufs.clear();
 
 		mPreviewThread->requestExitAndWait();
 		mPreviewThread.clear();
 
+		LOG_FUNCTION_NAME_EXIT;
 		return ret;
-
 	}
 
 	char * V4LCameraAdapter::GetFrame(int &index)
@@ -523,9 +526,6 @@ namespace android {
 		LOG_FUNCTION_NAME_EXIT;
 	}
 
-	/* Preview Thread */
-	// ---------------------------------------------------------------------------
-
 	int V4LCameraAdapter::previewThread()
 	{
 		status_t ret = NO_ERROR;
@@ -537,9 +537,7 @@ namespace android {
 			int index = 0;
 			char *fp = this->GetFrame(mBufferIndex);
 			if(!fp)
-			{
 				return BAD_VALUE;
-			}
 
 			int width, height;
 			mParams.getPreviewSize(&width, &height);
@@ -559,19 +557,15 @@ namespace android {
 			frame.mTimestamp = systemTime(SYSTEM_TIME_MONOTONIC);;
 
 			ret = sendFrameToSubscribers(&frame);
-
-			if(ret < 0){
-				LOGE("send Frame to subscribers failed!\n");
-			}
+			if(ret < 0)
+				LOGE("Failed to send frame to subscribers!\n");
 
 			ret = ioctl(mCameraHandle, VIDIOC_QBUF, &mVideoInfo->buf);
 			if (ret < 0) {
-				LOGE("Init: VIDIOC_QBUF Failed");
+				LOGE("previewThread VIDIOC_QBUF Failed");
 				return -1;
 			}
-
 		}
-
 		return ret;
 	}
 	

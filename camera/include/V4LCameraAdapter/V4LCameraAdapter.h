@@ -109,7 +109,6 @@ private:
             }
             virtual bool threadLoop() {
                 mAdapter->previewThread();
-                // loop until we need to quit
                 return true;
             }
         };
