@@ -589,10 +589,9 @@ namespace android {
 			return NULL;
 		}
 
-		//mANativeWindow->get_min_undequeued_buffer_count(mANativeWindow,
-		//		&undequeued);
-
+		mANativeWindow->get_min_undequeued_buffer_count(mANativeWindow, &undequeued);
 		bytes = getBufSize(format, width, height);
+		LOGE("mBufferCount %d, undequeued %d\n", mBufferCount, undequeued);
 
 		// lock the initial queueable buffers
 		bounds.left = 0;
@@ -601,62 +600,33 @@ namespace android {
 		bounds.bottom = height;
 
 		for (i = 0; i < mBufferCount; i++) {
-			IMG_native_handle_t** hndl2hndl;
+			buffer_handle_t* buf;
 			int stride;
-			err = mANativeWindow->dequeue_buffer(mANativeWindow,
-					(buffer_handle_t**) &hndl2hndl, &stride);
+			void * y_uv = NULL;
+			
+			err = mANativeWindow->dequeue_buffer(mANativeWindow, &buf, &stride);
 
 			if (err != 0) {
 				LOGE("dequeueBuffer failed: %s (%d)", strerror(-err), -err);
-
 				if (ENODEV == err) {
 					LOGE("Preview surface abandoned!");
 					mANativeWindow = NULL;
 				}
-
 				goto fail;
 			}
 
-			mBufferHandleMap[i] = (buffer_handle_t*) hndl2hndl;
-		}
+			mBufferHandleMap[i] = buf;
 
-
-		LOGE("mBufferCount %d, undequeued %d\n", mBufferCount, undequeued);
-
-		for (i = 0; i < mBufferCount - undequeued; i++) {
-			IMG_native_handle_t* handle;			
-			void * y_uv = NULL;
-
-
+			
 			mapper.lock((buffer_handle_t) *mBufferHandleMap[i], CAMHAL_GRALLOC_USAGE, bounds, &y_uv);
-			handle = (IMG_native_handle_t*)y_uv;
-
-			LOGE("xxxxxxxx graphic index %d, address %x", i, handle);
-			mANativeWindow->lock_buffer(mANativeWindow, mBufferHandleMap[i]);
-			mGrallocHandleMap[i] = handle;
-			mFramesWithCameraAdapterMap.add((int) mGrallocHandleMap[i], i);
 			mapper.unlock((buffer_handle_t) *mBufferHandleMap[i]);
-		}
+			mGrallocHandleMap[i] = (IMG_native_handle_t*)y_uv;
+			mFramesWithCameraAdapterMap.add((int) mGrallocHandleMap[i], i);
 
-		// return the rest of the buffers back to ANativeWindow
-		for (i = (mBufferCount - undequeued); i >= 0 && i < mBufferCount; i++) {
-			err = mANativeWindow->cancel_buffer(mANativeWindow,
-					mBufferHandleMap[i]);
-			if (err != 0) {
-				LOGE("cancel_buffer failed: %s (%d)", strerror(-err), -err);
-
-				if (ENODEV == err) {
-					LOGE("Preview surface abandoned!");
-					mANativeWindow = NULL;
-				}
-
-				goto fail;
-			}
-			mFramesWithCameraAdapterMap.removeItem((int) mGrallocHandleMap[i]);
-			void *y_uv[2];
-			mapper.lock((buffer_handle_t) mBufferHandleMap[i],
-					CAMHAL_GRALLOC_USAGE, bounds, y_uv);
-			mapper.unlock((buffer_handle_t) mBufferHandleMap[i]);
+			//if(i < mBufferCount - undequeued)
+				mANativeWindow->lock_buffer(mANativeWindow, mBufferHandleMap[i]);
+			//else
+				//mANativeWindow->cancel_buffer(mANativeWindow, mBufferHandleMap[i]);
 		}
 
 		mFirstInit = true;
@@ -1181,7 +1151,7 @@ end:
 				break;
 		}
 
-		LOGE("mBufferCount %d, i %d\n", mBufferCount, i);
+		LOGE("HandleFrameReturn mBufferCount %d, index %d\n", mBufferCount, i);
 
 		err = mANativeWindow->lock_buffer(mANativeWindow, buf);
 		if (err != 0) {
@@ -1202,7 +1172,7 @@ end:
 		bounds.bottom = mFrameHeight;
 
 		int lock_try_count = 0;
-		while (mapper.lock((buffer_handle_t) mBufferHandleMap[i],
+		while (mapper.lock((buffer_handle_t) *mBufferHandleMap[i],
 					CAMHAL_GRALLOC_USAGE, bounds, &y_uv) < 0) {
 			if (++lock_try_count > LOCK_BUFFER_TRIES) {
 				if (NULL != mErrorNotifier.get()) {
@@ -1245,7 +1215,7 @@ end:
 				break;
 			}
 		}
-		LOGE("mBufferCount %d, index %d\n", mBufferCount, index);
+		LOGE("PostFrame mBufferCount %d, index %d\n", mBufferCount, index);
 		if(index >= mBufferCount){
 			LOGE("Error!! index >= mBufferCount!\n");
 			return -EINVAL;

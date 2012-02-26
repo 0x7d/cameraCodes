@@ -35,402 +35,6 @@ namespace android {
 	const int AppCallbackNotifier::NOTIFIER_TIMEOUT = -1;
 	KeyedVector<void*, sp<Encoder_libjpeg> > gEncoderQueue;
 
-	void AppCallbackNotifierEncoderCallback(void* main_jpeg,
-			void* thumb_jpeg,
-			CameraFrame::FrameType type,
-			void* cookie1,
-			void* cookie2,
-			void* cookie3)
-	{
-		if (cookie1) {
-			AppCallbackNotifier* cb = (AppCallbackNotifier*) cookie1;
-			cb->EncoderDoneCb(main_jpeg, thumb_jpeg, type, cookie2, cookie3);
-		}
-	}
-
-	/*--------------------NotificationHandler Class STARTS here-----------------------------*/
-
-	void AppCallbackNotifier::EncoderDoneCb(void* main_jpeg, void* thumb_jpeg, CameraFrame::FrameType type, void* cookie1, void* cookie2)
-	{
-		camera_memory_t* encoded_mem = NULL;
-		Encoder_libjpeg::params *main_param = NULL, *thumb_param = NULL;
-		size_t jpeg_size;
-		uint8_t* src = NULL;
-		sp<Encoder_libjpeg> encoder = NULL;
-
-		LOG_FUNCTION_NAME;
-
-		camera_memory_t* picture = NULL;
-
-		{
-			Mutex::Autolock lock(mLock);
-
-			if (!main_jpeg) {
-				goto exit;
-			}
-
-			encoded_mem = (camera_memory_t*) cookie1;
-			main_param = (Encoder_libjpeg::params *) main_jpeg;
-			jpeg_size = main_param->jpeg_size;
-			src = main_param->src;
-
-			if(encoded_mem && encoded_mem->data && (jpeg_size > 0)) {
-				if (cookie2) {
-					ExifElementsTable* exif = (ExifElementsTable*) cookie2;
-					Section_t* exif_section = NULL;
-
-					exif->insertExifToJpeg((unsigned char*) encoded_mem->data, jpeg_size);
-
-					if(thumb_jpeg) {
-						thumb_param = (Encoder_libjpeg::params *) thumb_jpeg;
-						exif->insertExifThumbnailImage((const char*)thumb_param->dst,
-								(int)thumb_param->jpeg_size);
-					}
-
-					exif_section = FindSection(M_EXIF);
-
-					if (exif_section) {
-						picture = mRequestMemory(-1, jpeg_size + exif_section->Size, 1, NULL);
-						if (picture && picture->data) {
-							exif->saveJpeg((unsigned char*) picture->data, jpeg_size + exif_section->Size);
-						}
-					}
-					delete exif;
-					cookie2 = NULL;
-				} else {
-					picture = mRequestMemory(-1, jpeg_size, 1, NULL);
-					if (picture && picture->data) {
-						memcpy(picture->data, encoded_mem->data, jpeg_size);
-					}
-				}
-			}
-		} // scope for mutex lock
-
-		if (!mRawAvailable) {
-			dummyRaw();
-		} else {
-			mRawAvailable = false;
-		}
-
-		// Send the callback to the application only if the notifier is started and the message is enabled
-		if(picture && (mNotifierState==AppCallbackNotifier::NOTIFIER_STARTED) &&
-				(mCameraHal->msgTypeEnabled(CAMERA_MSG_COMPRESSED_IMAGE)))
-		{
-			Mutex::Autolock lock(mBurstLock);
-#if 0 //TODO: enable burst mode later
-			if ( mBurst )
-			{
-				`(CAMERA_MSG_BURST_IMAGE, JPEGPictureMemBase, mCallbackCookie);
-			}
-			else
-#endif
-			{
-				mDataCb(CAMERA_MSG_COMPRESSED_IMAGE, picture, 0, NULL, mCallbackCookie);
-			}
-		}
-
-exit:
-
-		if (main_jpeg) {
-			free(main_jpeg);
-		}
-
-		if (thumb_jpeg) {
-			if (((Encoder_libjpeg::params *) thumb_jpeg)->dst) {
-				free(((Encoder_libjpeg::params *) thumb_jpeg)->dst);
-			}
-			free(thumb_jpeg);
-		}
-
-		if (encoded_mem) {
-			encoded_mem->release(encoded_mem);
-		}
-
-		if (picture) {
-			picture->release(picture);
-		}
-
-		if (cookie2) {
-			delete (ExifElementsTable*) cookie2;
-		}
-
-		if (mNotifierState == AppCallbackNotifier::NOTIFIER_STARTED) {
-			encoder = gEncoderQueue.valueFor(src);
-			if (encoder.get()) {
-				gEncoderQueue.removeItem(src);
-				encoder.clear();
-			}
-			mFrameProvider->returnFrame(src, type);
-		}
-
-		LOG_FUNCTION_NAME_EXIT;
-	}
-
-	/**
-	 * NotificationHandler class
-	 */
-
-	///Initialization function for AppCallbackNotifier
-	status_t AppCallbackNotifier::initialize()
-	{
-		LOG_FUNCTION_NAME;
-
-		mMeasurementEnabled = false;
-
-		///Create the app notifier thread
-		mNotificationThread = new NotificationThread(this);
-		if(!mNotificationThread.get())
-		{
-			LOGE("Couldn't create Notification thread");
-			return NO_MEMORY;
-		}
-
-		///Start the display thread
-		status_t ret = mNotificationThread->run("NotificationThread", PRIORITY_URGENT_DISPLAY);
-		if(ret!=NO_ERROR)
-		{
-			LOGE("Couldn't run NotificationThread");
-			mNotificationThread.clear();
-			return ret;
-		}
-
-		mUseMetaDataBufferMode = true;
-		mRawAvailable = false;
-
-		LOG_FUNCTION_NAME_EXIT;
-
-		return ret;
-	}
-
-	void AppCallbackNotifier::setCallbacks(CameraHal* cameraHal,
-			camera_notify_callback notify_cb,
-			camera_data_callback data_cb,
-			camera_data_timestamp_callback data_cb_timestamp,
-			camera_request_memory get_memory,
-			void *user)
-	{
-		Mutex::Autolock lock(mLock);
-
-		LOG_FUNCTION_NAME;
-
-		mCameraHal = cameraHal;
-		mNotifyCb = notify_cb;
-		mDataCb = data_cb;
-		mDataCbTimestamp = data_cb_timestamp;
-		mRequestMemory = get_memory;
-		mCallbackCookie = user;
-
-		LOG_FUNCTION_NAME_EXIT;
-	}
-
-	void AppCallbackNotifier::setMeasurements(bool enable)
-	{
-		Mutex::Autolock lock(mLock);
-
-		LOG_FUNCTION_NAME;
-
-		mMeasurementEnabled = enable;
-
-		if (  enable  )
-		{
-			mFrameProvider->enableFrameNotification(CameraFrame::FRAME_DATA_SYNC);
-		}
-
-		LOG_FUNCTION_NAME_EXIT;
-	}
-
-
-	//All sub-components of Camera HAL call this whenever any error happens
-	void AppCallbackNotifier::errorNotify(int error)
-	{
-		LOG_FUNCTION_NAME;
-
-		LOGE("AppCallbackNotifier received error %d", error);
-
-		// If it is a fatal error abort here!
-		if((error == CAMERA_ERROR_FATAL) || (error == CAMERA_ERROR_HARD)) {
-			//We kill media server if we encounter these errors as there is
-			//no point continuing and apps also don't handle errors other
-			//than media server death always.
-			abort();
-			return;
-		}
-
-		if (  ( NULL != mCameraHal ) &&
-				( NULL != mNotifyCb ) &&
-				( mCameraHal->msgTypeEnabled(CAMERA_MSG_ERROR) ) )
-		{
-			LOGE("AppCallbackNotifier mNotifyCb %d", error);
-			mNotifyCb(CAMERA_MSG_ERROR, CAMERA_ERROR_UNKNOWN, 0, mCallbackCookie);
-		}
-
-		LOG_FUNCTION_NAME_EXIT;
-	}
-
-	bool AppCallbackNotifier::notificationThread()
-	{
-		bool shouldLive = true;
-		status_t ret;
-
-		LOG_FUNCTION_NAME;
-
-		//LOGE("Notification Thread waiting for message");
-		ret = TIUTILS::MessageQueue::waitForMsg(&mNotificationThread->msgQ(),
-				&mEventQ,
-				&mFrameQ,
-				AppCallbackNotifier::NOTIFIER_TIMEOUT);
-
-		//LOGE("Notification Thread received message");
-
-		if (mNotificationThread->msgQ().hasMsg()) {
-			///Received a message from CameraHal, process it
-			LOGE("Notification Thread received message from Camera HAL");
-			shouldLive = processMessage();
-			if(!shouldLive) {
-				LOGE("Notification Thread exiting.");
-			}
-		}
-
-		if(mEventQ.hasMsg()) {
-			///Received an event from one of the event providers
-			LOGE("Notification Thread received an event from event provider (CameraAdapter)");
-			notifyEvent();
-		}
-
-		if(mFrameQ.hasMsg()) {
-			///Received a frame from one of the frame providers
-			//LOGE("Notification Thread received a frame from frame provider (CameraAdapter)");
-			notifyFrame();
-		}
-
-		LOG_FUNCTION_NAME_EXIT;
-		return shouldLive;
-	}
-
-	void AppCallbackNotifier::notifyEvent()
-	{
-		///Receive and send the event notifications to app
-		TIUTILS::Message msg;
-		LOG_FUNCTION_NAME;
-		mEventQ.get(&msg);
-		bool ret = true;
-		CameraHalEvent *evt = NULL;
-		CameraHalEvent::FocusEventData *focusEvtData;
-		CameraHalEvent::ZoomEventData *zoomEvtData;
-		CameraHalEvent::FaceEventData faceEvtData;
-
-		if(mNotifierState != AppCallbackNotifier::NOTIFIER_STARTED)
-		{
-			return;
-		}
-
-		switch(msg.command)
-		{
-		case AppCallbackNotifier::NOTIFIER_CMD_PROCESS_EVENT:
-
-			evt = ( CameraHalEvent * ) msg.arg1;
-
-			if ( NULL == evt )
-			{
-				LOGE("Invalid CameraHalEvent");
-				return;
-			}
-
-			switch(evt->mEventType)
-			{
-			case CameraHalEvent::EVENT_SHUTTER:
-
-				if ( ( NULL != mCameraHal ) &&
-						( NULL != mNotifyCb ) &&
-						( mCameraHal->msgTypeEnabled(CAMERA_MSG_SHUTTER) ) )
-				{
-					mNotifyCb(CAMERA_MSG_SHUTTER, 0, 0, mCallbackCookie);
-				}
-				mRawAvailable = false;
-
-				break;
-
-			case CameraHalEvent::EVENT_FOCUS_LOCKED:
-			case CameraHalEvent::EVENT_FOCUS_ERROR:
-
-				focusEvtData = &evt->mEventData->focusEvent;
-				if ( ( focusEvtData->focusLocked ) &&
-						( NULL != mCameraHal ) &&
-						( NULL != mNotifyCb ) &&
-						( mCameraHal->msgTypeEnabled(CAMERA_MSG_FOCUS) ) )
-				{
-					mNotifyCb(CAMERA_MSG_FOCUS, true, 0, mCallbackCookie);
-					mCameraHal->disableMsgType(CAMERA_MSG_FOCUS);
-				}
-				else if ( focusEvtData->focusError &&
-						( NULL != mCameraHal ) &&
-						( NULL != mNotifyCb ) &&
-						( mCameraHal->msgTypeEnabled(CAMERA_MSG_FOCUS) ) )
-				{
-					mNotifyCb(CAMERA_MSG_FOCUS, false, 0, mCallbackCookie);
-					mCameraHal->disableMsgType(CAMERA_MSG_FOCUS);
-				}
-
-				break;
-
-			case CameraHalEvent::EVENT_ZOOM_INDEX_REACHED:
-
-				zoomEvtData = &evt->mEventData->zoomEvent;
-
-				if ( ( NULL != mCameraHal ) &&
-						( NULL != mNotifyCb) &&
-						( mCameraHal->msgTypeEnabled(CAMERA_MSG_ZOOM) ) )
-				{
-					mNotifyCb(CAMERA_MSG_ZOOM, zoomEvtData->currentZoomIndex, zoomEvtData->targetZoomIndexReached, mCallbackCookie);
-				}
-
-				break;
-
-			case CameraHalEvent::EVENT_FACE:
-
-				faceEvtData = evt->mEventData->faceEvent;
-
-				if ( ( NULL != mCameraHal ) &&
-						( NULL != mNotifyCb) &&
-						( mCameraHal->msgTypeEnabled(CAMERA_MSG_PREVIEW_METADATA) ) )
-				{
-					// WA for an issue inside CameraService
-					camera_memory_t *tmpBuffer = mRequestMemory(-1, 1, 1, NULL);
-
-					mDataCb(CAMERA_MSG_PREVIEW_METADATA,
-							tmpBuffer,
-							0,
-							faceEvtData->getFaceResult(),
-							mCallbackCookie);
-
-					faceEvtData.clear();
-
-					if ( NULL != tmpBuffer ) {
-						tmpBuffer->release(tmpBuffer);
-					}
-
-				}
-
-				break;
-
-			case CameraHalEvent::ALL_EVENTS:
-				break;
-			default:
-				break;
-			}
-
-			break;
-		}
-
-		if ( NULL != evt )
-		{
-			delete evt;
-		}
-
-
-		LOG_FUNCTION_NAME_EXIT;
-
-	}
 
 	static void copy2Dto1D(void *dst,
 			void *src,
@@ -607,6 +211,406 @@ exit:
 		}
 	}
 
+	void AppCallbackNotifierEncoderCallback(void* main_jpeg,
+			void* thumb_jpeg,
+			CameraFrame::FrameType type,
+			void* cookie1,
+			void* cookie2,
+			void* cookie3)
+	{
+		if (cookie1) {
+			AppCallbackNotifier* cb = (AppCallbackNotifier*) cookie1;
+			cb->EncoderDoneCb(main_jpeg, thumb_jpeg, type, cookie2, cookie3);
+		}
+	}
+
+	/*--------------------NotificationHandler Class STARTS here-----------------------------*/
+
+	void AppCallbackNotifier::EncoderDoneCb(void* main_jpeg, void* thumb_jpeg, CameraFrame::FrameType type, void* cookie1, void* cookie2)
+	{
+		LOG_FUNCTION_NAME;
+
+		camera_memory_t* encoded_mem = NULL;
+		Encoder_libjpeg::params *main_param = NULL, *thumb_param = NULL;
+		size_t jpeg_size;
+		uint8_t* src = NULL;
+		sp<Encoder_libjpeg> encoder = NULL;
+
+		camera_memory_t* picture = NULL;
+
+		{
+			Mutex::Autolock lock(mLock);
+
+			if (!main_jpeg) {
+				goto exit;
+			}
+			LOGE("cookie1 %p, cookie2 %p",cookie1, cookie2);
+			
+			encoded_mem = (camera_memory_t*) cookie1;
+			main_param = (Encoder_libjpeg::params *) main_jpeg;
+			jpeg_size = main_param->jpeg_size;
+			src = main_param->src;
+
+			if(encoded_mem && encoded_mem->data && (jpeg_size > 0)) {
+				if (cookie2) {
+					ExifElementsTable* exif = (ExifElementsTable*) cookie2;
+					Section_t* exif_section = NULL;
+
+					exif->insertExifToJpeg((unsigned char*) encoded_mem->data, jpeg_size);
+
+					if(thumb_jpeg) {
+						thumb_param = (Encoder_libjpeg::params *) thumb_jpeg;
+						exif->insertExifThumbnailImage((const char*)thumb_param->dst,
+								(int)thumb_param->jpeg_size);
+					}
+
+					exif_section = FindSection(M_EXIF);
+
+					if (exif_section) {
+						picture = mRequestMemory(-1, jpeg_size + exif_section->Size, 1, NULL);
+						if (picture && picture->data) {
+							exif->saveJpeg((unsigned char*) picture->data, jpeg_size + exif_section->Size);
+						}
+					}
+					delete exif;
+					cookie2 = NULL;
+				} else {
+					LOGE("Copy data to picture\n");
+					picture = mRequestMemory(-1, jpeg_size, 1, NULL);
+					if (picture && picture->data) {
+						memcpy(picture->data, encoded_mem->data, jpeg_size);
+					}
+				}
+			}
+		} // scope for mutex lock
+
+		if (!mRawAvailable) {
+			dummyRaw();
+		} else {
+			mRawAvailable = false;
+		}
+
+		// Send the callback to the application only if the notifier is started and the message is enabled
+		if(picture && (mNotifierState==AppCallbackNotifier::NOTIFIER_STARTED) &&
+				(mCameraHal->msgTypeEnabled(CAMERA_MSG_COMPRESSED_IMAGE)))
+		{
+			Mutex::Autolock lock(mBurstLock);
+#if 0 //TODO: enable burst mode later
+			if ( mBurst )
+			{
+				`(CAMERA_MSG_BURST_IMAGE, JPEGPictureMemBase, mCallbackCookie);
+			}
+			else
+#endif
+			{
+				LOGE("Send callback to application\n");
+				mDataCb(CAMERA_MSG_COMPRESSED_IMAGE, picture, 0, NULL, mCallbackCookie);
+			}
+		}
+
+exit:
+
+		if (main_jpeg) {
+			free(main_jpeg);
+		}
+
+		if (thumb_jpeg) {
+			if (((Encoder_libjpeg::params *) thumb_jpeg)->dst) {
+				free(((Encoder_libjpeg::params *) thumb_jpeg)->dst);
+			}
+			free(thumb_jpeg);
+		}
+
+		if (encoded_mem) {
+			encoded_mem->release(encoded_mem);
+		}
+
+		if (picture) {
+			picture->release(picture);
+		}
+
+		if (cookie2) {
+			delete (ExifElementsTable*) cookie2;
+		}
+
+		if (mNotifierState == AppCallbackNotifier::NOTIFIER_STARTED) {
+			encoder = gEncoderQueue.valueFor(src);
+			if (encoder.get()) {
+				gEncoderQueue.removeItem(src);
+				encoder.clear();
+			}
+			mFrameProvider->returnFrame(src, type);
+		}
+
+		LOG_FUNCTION_NAME_EXIT;
+	}
+
+	/**
+	 * NotificationHandler class
+	 */
+
+	///Initialization function for AppCallbackNotifier
+	status_t AppCallbackNotifier::initialize()
+	{
+		LOG_FUNCTION_NAME;
+
+		mMeasurementEnabled = false;
+
+		///Create the app notifier thread
+		mNotificationThread = new NotificationThread(this);
+		if(!mNotificationThread.get())
+		{
+			LOGE("Couldn't create Notification thread");
+			return NO_MEMORY;
+		}
+
+		///Start the display thread
+		status_t ret = mNotificationThread->run("NotificationThread", PRIORITY_URGENT_DISPLAY);
+		if(ret!=NO_ERROR)
+		{
+			LOGE("Couldn't run NotificationThread");
+			mNotificationThread.clear();
+			return ret;
+		}
+
+		mUseMetaDataBufferMode = true;
+		mRawAvailable = false;
+
+		LOG_FUNCTION_NAME_EXIT;
+
+		return ret;
+	}
+
+	void AppCallbackNotifier::setCallbacks(CameraHal* cameraHal,
+			camera_notify_callback notify_cb,
+			camera_data_callback data_cb,
+			camera_data_timestamp_callback data_cb_timestamp,
+			camera_request_memory get_memory,
+			void *user)
+	{
+		Mutex::Autolock lock(mLock);
+
+		LOG_FUNCTION_NAME;
+
+		mCameraHal = cameraHal;
+		mNotifyCb = notify_cb;
+		mDataCb = data_cb;
+		mDataCbTimestamp = data_cb_timestamp;
+		mRequestMemory = get_memory;
+		mCallbackCookie = user;
+
+		LOG_FUNCTION_NAME_EXIT;
+	}
+
+	void AppCallbackNotifier::setMeasurements(bool enable)
+	{
+		Mutex::Autolock lock(mLock);
+
+		LOG_FUNCTION_NAME;
+
+		mMeasurementEnabled = enable;
+
+		if (  enable  )
+		{
+			mFrameProvider->enableFrameNotification(CameraFrame::FRAME_DATA_SYNC);
+		}
+
+		LOG_FUNCTION_NAME_EXIT;
+	}
+
+
+	//All sub-components of Camera HAL call this whenever any error happens
+	void AppCallbackNotifier::errorNotify(int error)
+	{
+		LOG_FUNCTION_NAME;
+
+		LOGE("AppCallbackNotifier received error %d", error);
+
+		// If it is a fatal error abort here!
+		if((error == CAMERA_ERROR_FATAL) || (error == CAMERA_ERROR_HARD)) {
+			//We kill media server if we encounter these errors as there is
+			//no point continuing and apps also don't handle errors other
+			//than media server death always.
+			abort();
+			return;
+		}
+
+		if (  ( NULL != mCameraHal ) &&
+				( NULL != mNotifyCb ) &&
+				( mCameraHal->msgTypeEnabled(CAMERA_MSG_ERROR) ) )
+		{
+			LOGE("AppCallbackNotifier mNotifyCb %d", error);
+			mNotifyCb(CAMERA_MSG_ERROR, CAMERA_ERROR_UNKNOWN, 0, mCallbackCookie);
+		}
+
+		LOG_FUNCTION_NAME_EXIT;
+	}
+
+	bool AppCallbackNotifier::notificationThread()
+	{
+		bool shouldLive = true;
+		status_t ret;
+
+		LOG_FUNCTION_NAME;
+
+		LOGE("Notification Thread waiting for message");
+		ret = TIUTILS::MessageQueue::waitForMsg(&mNotificationThread->msgQ(),
+				&mEventQ,
+				&mFrameQ,
+				AppCallbackNotifier::NOTIFIER_TIMEOUT);
+
+		LOGE("Notification Thread received message");
+
+		if (mNotificationThread->msgQ().hasMsg()) {
+			///Received a message from CameraHal, process it
+			LOGE("Notification Thread received message from Camera HAL");
+			shouldLive = processMessage();
+			if(!shouldLive) {
+				LOGE("Notification Thread exiting.");
+			}
+		}
+
+		if(mEventQ.hasMsg()) {
+			///Received an event from one of the event providers
+			LOGE("Notification Thread received an event from event provider (CameraAdapter)");
+			notifyEvent();
+		}
+
+		if(mFrameQ.hasMsg()) {
+			///Received a frame from one of the frame providers
+			LOGE("Notification Thread received a frame from frame provider (CameraAdapter)");
+			notifyFrame();
+		}
+
+		LOG_FUNCTION_NAME_EXIT;
+		return shouldLive;
+	}
+
+	void AppCallbackNotifier::notifyEvent()
+	{
+		///Receive and send the event notifications to app
+		TIUTILS::Message msg;
+		LOG_FUNCTION_NAME;
+		mEventQ.get(&msg);
+		bool ret = true;
+		CameraHalEvent *evt = NULL;
+		CameraHalEvent::FocusEventData *focusEvtData;
+		CameraHalEvent::ZoomEventData *zoomEvtData;
+		CameraHalEvent::FaceEventData faceEvtData;
+
+		if(mNotifierState != AppCallbackNotifier::NOTIFIER_STARTED)
+		{
+			return;
+		}
+
+		switch(msg.command)
+		{
+		case AppCallbackNotifier::NOTIFIER_CMD_PROCESS_EVENT:
+
+			evt = ( CameraHalEvent * ) msg.arg1;
+
+			if ( NULL == evt )
+			{
+				LOGE("Invalid CameraHalEvent");
+				return;
+			}
+
+			switch(evt->mEventType)
+			{
+			case CameraHalEvent::EVENT_SHUTTER:
+
+				if ( ( NULL != mCameraHal ) &&
+						( NULL != mNotifyCb ) &&
+						( mCameraHal->msgTypeEnabled(CAMERA_MSG_SHUTTER) ) )
+				{
+					mNotifyCb(CAMERA_MSG_SHUTTER, 0, 0, mCallbackCookie);
+				}
+				mRawAvailable = false;
+
+				break;
+
+			case CameraHalEvent::EVENT_FOCUS_LOCKED:
+			case CameraHalEvent::EVENT_FOCUS_ERROR:
+
+				focusEvtData = &evt->mEventData->focusEvent;
+				if ( ( focusEvtData->focusLocked ) &&
+						( NULL != mCameraHal ) &&
+						( NULL != mNotifyCb ) &&
+						( mCameraHal->msgTypeEnabled(CAMERA_MSG_FOCUS) ) )
+				{
+					mNotifyCb(CAMERA_MSG_FOCUS, true, 0, mCallbackCookie);
+					mCameraHal->disableMsgType(CAMERA_MSG_FOCUS);
+				}
+				else if ( focusEvtData->focusError &&
+						( NULL != mCameraHal ) &&
+						( NULL != mNotifyCb ) &&
+						( mCameraHal->msgTypeEnabled(CAMERA_MSG_FOCUS) ) )
+				{
+					mNotifyCb(CAMERA_MSG_FOCUS, false, 0, mCallbackCookie);
+					mCameraHal->disableMsgType(CAMERA_MSG_FOCUS);
+				}
+
+				break;
+
+			case CameraHalEvent::EVENT_ZOOM_INDEX_REACHED:
+
+				zoomEvtData = &evt->mEventData->zoomEvent;
+
+				if ( ( NULL != mCameraHal ) &&
+						( NULL != mNotifyCb) &&
+						( mCameraHal->msgTypeEnabled(CAMERA_MSG_ZOOM) ) )
+				{
+					mNotifyCb(CAMERA_MSG_ZOOM, zoomEvtData->currentZoomIndex, zoomEvtData->targetZoomIndexReached, mCallbackCookie);
+				}
+
+				break;
+
+			case CameraHalEvent::EVENT_FACE:
+
+				faceEvtData = evt->mEventData->faceEvent;
+
+				if ( ( NULL != mCameraHal ) &&
+						( NULL != mNotifyCb) &&
+						( mCameraHal->msgTypeEnabled(CAMERA_MSG_PREVIEW_METADATA) ) )
+				{
+					// WA for an issue inside CameraService
+					camera_memory_t *tmpBuffer = mRequestMemory(-1, 1, 1, NULL);
+
+					mDataCb(CAMERA_MSG_PREVIEW_METADATA,
+							tmpBuffer,
+							0,
+							faceEvtData->getFaceResult(),
+							mCallbackCookie);
+
+					faceEvtData.clear();
+
+					if ( NULL != tmpBuffer ) {
+						tmpBuffer->release(tmpBuffer);
+					}
+
+				}
+
+				break;
+
+			case CameraHalEvent::ALL_EVENTS:
+				break;
+			default:
+				break;
+			}
+
+			break;
+		}
+
+		if ( NULL != evt )
+		{
+			delete evt;
+		}
+
+
+		LOG_FUNCTION_NAME_EXIT;
+
+	}
+
 	void AppCallbackNotifier::copyAndSendPictureFrame(CameraFrame* frame, int32_t msgType)
 	{
 		camera_memory_t* picture = NULL;
@@ -752,6 +756,8 @@ exit:
 
 	void AppCallbackNotifier::notifyFrame()
 	{
+		LOG_FUNCTION_NAME;
+
 		///Receive and send the frame notifications to app
 		TIUTILS::Message msg;
 		CameraFrame *frame;
@@ -759,8 +765,6 @@ exit:
 		MemoryBase *buffer = NULL;
 		sp<MemoryBase> memBase;
 		void *buf = NULL;
-
-		LOG_FUNCTION_NAME;
 
 		{
 			Mutex::Autolock lock(mLock);
@@ -774,6 +778,8 @@ exit:
 		bool ret = true;
 
 		frame = NULL;
+		LOGE("command %d, mDataCb %x, mCameraHal %x\n",msg.command, mDataCb, mCameraHal);
+
 		switch(msg.command)
 		{
 		case AppCallbackNotifier::NOTIFIER_CMD_PROCESS_FRAME:
@@ -792,11 +798,6 @@ exit:
 
 				if ( mCameraHal->msgTypeEnabled(CAMERA_MSG_RAW_IMAGE) )
 				{
-#ifdef COPY_IMAGE_BUFFER
-					copyAndSendPictureFrame(frame, CAMERA_MSG_RAW_IMAGE);
-#else
-					//TODO: Find a way to map a Tiler buffer to a MemoryHeapBase
-#endif
 				}
 				else {
 					if ( mCameraHal->msgTypeEnabled(CAMERA_MSG_RAW_IMAGE_NOTIFY) ) {
@@ -814,7 +815,7 @@ exit:
 					(NULL != mDataCb) &&
 					(CameraFrame::ENCODE_RAW_YUV422I_TO_JPEG & frame->mQuirks) )
 			{
-
+				LOGE("notifyFrame CameraFrame::IMAGE_FRAME\n");
 				int encode_quality = 100, tn_quality = 100;
 				int tn_width, tn_height;
 				unsigned int current_snapshot = 0;
@@ -1076,15 +1077,14 @@ exit:
 
 	void AppCallbackNotifier::frameCallback(CameraFrame* caFrame)
 	{
+		LOG_FUNCTION_NAME;
+
 		///Post the event to the event queue of AppCallbackNotifier
 		TIUTILS::Message msg;
 		CameraFrame *frame;
 
-		LOG_FUNCTION_NAME;
-
 		if ( NULL != caFrame )
 		{
-
 			frame = new CameraFrame(*caFrame);
 			if ( NULL != frame )
 			{

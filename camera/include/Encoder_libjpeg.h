@@ -120,6 +120,7 @@ class Encoder_libjpeg : public Thread {
         }
 
         virtual bool threadLoop() {
+			LOG_FUNCTION_NAME;
             size_t size = 0;
             sp<Encoder_libjpeg> tn = NULL;
             if (mThumbnailInput) {
@@ -145,6 +146,7 @@ class Encoder_libjpeg : public Thread {
 
             // encoder thread runs, self-destructs, and then exits
             this->decStrong(this);
+			LOG_FUNCTION_NAME_EXIT;
             return false;
         }
 

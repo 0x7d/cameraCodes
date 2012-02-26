@@ -58,6 +58,31 @@ namespace android {
 	Mutex gAdapterLock;
 	const char *device = DEVICE;
 
+	V4LCameraAdapter::V4LCameraAdapter()
+	{
+		LOG_FUNCTION_NAME;
+
+		// Nothing useful to do in the constructor
+
+		LOG_FUNCTION_NAME_EXIT;
+	}
+
+	V4LCameraAdapter::~V4LCameraAdapter()
+	{
+		LOG_FUNCTION_NAME;
+
+		// Close the camera handle and free the video info structure
+		close(mCameraHandle);
+
+		if (mVideoInfo)
+		{
+			free(mVideoInfo);
+			mVideoInfo = NULL;
+		}
+
+		LOG_FUNCTION_NAME_EXIT;
+	}
+
 
 	status_t V4LCameraAdapter::initialize(CameraProperties::Properties* properties)
 	{
@@ -172,6 +197,10 @@ namespace android {
 			return ret;
 		}
 
+		
+		// Allocate memory for frame buffer
+		mFrameBuffer = (char *)calloc(1, width * height * 2);
+
 		// Udpate the current parameter set
 		mParams = params;
 
@@ -267,17 +296,49 @@ namespace android {
 				LOGE("Unable to map buffer (%s)", strerror(errno));
 				return -1;
 			}
-			
+
 			//Associate each Camera internal buffer with the one from Overlay
 			uint32_t *ptr = (uint32_t*) bufArr;
 			LOGE("xxxxxxx bufArr index %d, address %x", i, ptr[i]);
 			mPreviewBufs.add((int)ptr[i], i);
 		}
-		
-		
+
+
 		// Update the preview buffer count
 		mPreviewBufferCount = num;
 
+		return ret;
+	}
+
+	status_t V4LCameraAdapter::takePicture(){
+		LOG_FUNCTION_NAME;
+
+		status_t ret = NO_ERROR;
+		LOGE("takePicture mBufferIndex %d", mBufferIndex);
+		char *src = (char *)mVideoInfo->mem[mBufferIndex];
+		
+		int width = mVideoInfo->width;
+		int height = mVideoInfo->height;
+		int bufferSize = width * height * 2;
+		LOGE("width %d, height %d", width, height);
+
+		memset(mFrameBuffer, 0, bufferSize);
+		memcpy(mFrameBuffer, src, bufferSize);
+
+		CameraFrame frame;
+		frame.mFrameType = CameraFrame::IMAGE_FRAME;
+		frame.mBuffer = mFrameBuffer;
+		frame.mWidth = width;
+		frame.mHeight = height;
+		frame.mLength = bufferSize;
+		frame.mAlignment = width*2;
+		frame.mOffset = 0;
+		frame.mQuirks |= CameraFrame::ENCODE_RAW_YUV422I_TO_JPEG;
+		frame.mTimestamp = systemTime(SYSTEM_TIME_MONOTONIC);;
+
+		ret = sendFrameToSubscribers(&frame);
+		
+		LOG_FUNCTION_NAME_EXIT;
 		return ret;
 	}
 
@@ -424,24 +485,6 @@ namespace android {
 		return NO_ERROR;
 	}
 
-	static void debugShowFPS()
-	{
-		static int mFrameCount = 0;
-		static int mLastFrameCount = 0;
-		static nsecs_t mLastFpsTime = 0;
-		static float mFps = 0;
-		mFrameCount++;
-		if (!(mFrameCount & 0x1F)) {
-			nsecs_t now = systemTime();
-			nsecs_t diff = now - mLastFpsTime;
-			mFps = ((mFrameCount - mLastFrameCount) * float(s2ns(1))) / diff;
-			mLastFpsTime = now;
-			mLastFrameCount = mFrameCount;
-			LOGD("Camera %d Frames, %f FPS", mFrameCount, mFps);
-		}
-		// XXX: mFPS has the value we want
-	}
-
 	status_t V4LCameraAdapter::recalculateFPS()
 	{
 		float currentFPS;
@@ -480,32 +523,6 @@ namespace android {
 		LOG_FUNCTION_NAME_EXIT;
 	}
 
-
-	V4LCameraAdapter::V4LCameraAdapter()
-	{
-		LOG_FUNCTION_NAME;
-
-		// Nothing useful to do in the constructor
-
-		LOG_FUNCTION_NAME_EXIT;
-	}
-
-	V4LCameraAdapter::~V4LCameraAdapter()
-	{
-		LOG_FUNCTION_NAME;
-
-		// Close the camera handle and free the video info structure
-		close(mCameraHandle);
-
-		if (mVideoInfo)
-		{
-			free(mVideoInfo);
-			mVideoInfo = NULL;
-		}
-
-		LOG_FUNCTION_NAME_EXIT;
-	}
-
 	/* Preview Thread */
 	// ---------------------------------------------------------------------------
 
@@ -518,23 +535,24 @@ namespace android {
 		if (mPreviewing)
 		{
 			int index = 0;
-			char *fp = this->GetFrame(index);
+			char *fp = this->GetFrame(mBufferIndex);
 			if(!fp)
 			{
 				return BAD_VALUE;
 			}
 
-
 			int width, height;
 			mParams.getPreviewSize(&width, &height);
 			LOGE("preview size, width %d,height %d\n", width, height);
 
-			char *ptr = (char*) mPreviewBufs.keyAt(index);
+			char *ptr = (char*) mPreviewBufs.keyAt(mBufferIndex);
 			LOGE("current preview buffer %x\n", ptr);	        
 			memcpy(ptr, fp, width * height * 2);
 
 			frame.mFrameType = CameraFrame::PREVIEW_FRAME_SYNC;
 			frame.mBuffer = ptr;
+			frame.mWidth = width;
+			frame.mHeight = height;
 			frame.mLength = width*height*2;
 			frame.mAlignment = width*2;
 			frame.mOffset = 0;
@@ -545,7 +563,7 @@ namespace android {
 			if(ret < 0){
 				LOGE("send Frame to subscribers failed!\n");
 			}
-			
+
 			ret = ioctl(mCameraHandle, VIDIOC_QBUF, &mVideoInfo->buf);
 			if (ret < 0) {
 				LOGE("Init: VIDIOC_QBUF Failed");
@@ -555,6 +573,24 @@ namespace android {
 		}
 
 		return ret;
+	}
+	
+	static void debugShowFPS()
+	{
+		static int mFrameCount = 0;
+		static int mLastFrameCount = 0;
+		static nsecs_t mLastFpsTime = 0;
+		static float mFps = 0;
+		mFrameCount++;
+		if (!(mFrameCount & 0x1F)) {
+			nsecs_t now = systemTime();
+			nsecs_t diff = now - mLastFpsTime;
+			mFps = ((mFrameCount - mLastFrameCount) * float(s2ns(1))) / diff;
+			mLastFpsTime = now;
+			mLastFrameCount = mFrameCount;
+			LOGD("Camera %d Frames, %f FPS", mFrameCount, mFps);
+		}
+		// XXX: mFPS has the value we want
 	}
 
 	extern "C" CameraAdapter* CameraAdapter_Factory(size_t sensor_index)

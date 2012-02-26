@@ -27,7 +27,8 @@ namespace android {
 
 #define DEFAULT_PIXEL_FORMAT V4L2_PIX_FMT_YUYV
 #define NB_BUFFER 10
-#define DEVICE "/dev/video0"
+#define DEVICE  "/dev/video0"
+#define PICNAME "/vendor/capture"
 
 
 struct VideoInfo {
@@ -74,6 +75,7 @@ public:
     //APIs to configure Camera adapter and get the current parameter set
     virtual status_t setParameters(const CameraParameters& params);
     virtual void getParameters(CameraParameters& params);
+    virtual status_t takePicture();
 
     // API
     virtual status_t UseBuffersPreview(void* bufArr, int num);
@@ -143,12 +145,13 @@ private:
     int mSensorIndex;
 
      // protected by mLock
-     sp<PreviewThread>   mPreviewThread;
+    sp<PreviewThread>   mPreviewThread;
 
-     struct VideoInfo *mVideoInfo;
-     int mCameraHandle;
+    struct VideoInfo *mVideoInfo;
+    char * mFrameBuffer;
+    int mCameraHandle;
 
-
+    int mBufferIndex;
     int nQueued;
     int nDequeued;
 

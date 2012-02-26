@@ -152,6 +152,7 @@ namespace android {
 	void CameraHal::enableMsgType(int32_t msgType)
 	{
 		LOG_FUNCTION_NAME;
+		LOGE("enableMsgType %d\n", msgType);
 
 		if ( ( msgType & CAMERA_MSG_SHUTTER ) && ( !mShutterEnabled ) )
 		{
@@ -202,7 +203,7 @@ namespace android {
 	void CameraHal::disableMsgType(int32_t msgType)
 	{
 		LOG_FUNCTION_NAME;
-
+		LOGE("disableMsgType %d\n", msgType);
 		{
 			Mutex::Autolock lock(mLock);
 			mMsgEnabled &= ~msgType;
