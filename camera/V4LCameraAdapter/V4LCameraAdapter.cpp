@@ -24,7 +24,6 @@
 
 #include "V4LCameraAdapter.h"
 #include "CameraHal.h"
-#include "TICameraParameters.h"
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -44,7 +43,7 @@ static int mDebugFps = 0;
 
 #define Q16_OFFSET 16
 
-#define HERE(Msg) {LOGE("--===line %d, %s===--\n", __LINE__, Msg);}
+#define HERE(Msg) {LOGINFO("--===line %d, %s===--\n", __LINE__, Msg);}
 
 namespace android {
 
@@ -91,7 +90,7 @@ namespace android {
 		char value[PROPERTY_VALUE_MAX];
 		property_get("debug.camera.showfps", value, "0");
 		mDebugFps = atoi(value);
-		LOGE("initialize mDebugFps %d\n", mDebugFps);
+		LOGINFO("initialize mDebugFps %d\n", mDebugFps);
 
 		int ret = NO_ERROR;
 
@@ -104,26 +103,26 @@ namespace android {
 
 		if ((mCameraHandle = open(device, O_RDWR)) == -1)
 		{
-			LOGE("Error while opening handle to V4L2 Camera: %s", strerror(errno));
+			LOGINFO("Error while opening handle to V4L2 Camera: %s", strerror(errno));
 			return -EINVAL;
 		}
 
 		ret = ioctl (mCameraHandle, VIDIOC_QUERYCAP, &mVideoInfo->cap);
 		if (ret < 0)
 		{
-			LOGE("Error when querying the capabilities of the V4L Camera");
+			LOGINFO("Error when querying the capabilities of the V4L Camera");
 			return -EINVAL;
 		}
 
 		if ((mVideoInfo->cap.capabilities & V4L2_CAP_VIDEO_CAPTURE) == 0)
 		{
-			LOGE("Error while adapter initialization: video capture not supported.");
+			LOGINFO("Error while adapter initialization: video capture not supported.");
 			return -EINVAL;
 		}
 
 		if (!(mVideoInfo->cap.capabilities & V4L2_CAP_STREAMING))
 		{
-			LOGE("Error while adapter initialization: Capture device does not support streaming i/o");
+			LOGINFO("Error while adapter initialization: Capture device does not support streaming i/o");
 			return -EINVAL;
 		}
 
@@ -159,7 +158,7 @@ namespace android {
 
 		ret = ioctl(mCameraHandle, VIDIOC_QBUF, &mVideoInfo->buf);
 		if (ret < 0) {
-			LOGE("Init: VIDIOC_QBUF Failed");
+			LOGINFO("Init: VIDIOC_QBUF Failed");
 			return -1;
 		}
 
@@ -179,7 +178,7 @@ namespace android {
 
 		params.getPreviewSize(&width, &height);
 
-		LOGE("Width * Height %d x %d format 0x%x", width, height, DEFAULT_PIXEL_FORMAT);
+		LOGINFO("Width * Height %d x %d format 0x%x", width, height, DEFAULT_PIXEL_FORMAT);
 
 		mVideoInfo->width = width;
 		mVideoInfo->height = height;
@@ -193,7 +192,7 @@ namespace android {
 
 		ret = ioctl(mCameraHandle, VIDIOC_S_FMT, &mVideoInfo->format);
 		if (ret < 0) {
-			LOGE("Open: VIDIOC_S_FMT Failed: %s", strerror(errno));
+			LOGINFO("Open: VIDIOC_S_FMT Failed: %s", strerror(errno));
 			return ret;
 		}
 
@@ -232,14 +231,14 @@ namespace android {
 		switch(mode)
 		{
 		case CAMERA_PREVIEW:
-			ret = UseBuffersPreview(bufArr, num);
+			ret = useBuffersPreview(bufArr, num);
 			break;
 
 			//@todo Insert Image capture case here
 
 		case CAMERA_VIDEO:
 			//@warn Video capture is not fully supported yet
-			ret = UseBuffersPreview(bufArr, num);
+			ret = useBuffersPreview(bufArr, num);
 			break;
 
 		}
@@ -249,7 +248,7 @@ namespace android {
 		return ret;
 	}
 
-	status_t V4LCameraAdapter::UseBuffersPreview(void* bufArr, int num)
+	status_t V4LCameraAdapter::useBuffersPreview(void* bufArr, int num)
 	{
 		int ret = NO_ERROR;
 
@@ -267,7 +266,7 @@ namespace android {
 
 		ret = ioctl(mCameraHandle, VIDIOC_REQBUFS, &mVideoInfo->rb);
 		if (ret < 0) {
-			LOGE("VIDIOC_REQBUFS failed: %s", strerror(errno));
+			LOGINFO("VIDIOC_REQBUFS failed: %s", strerror(errno));
 			return ret;
 		}
 
@@ -281,7 +280,7 @@ namespace android {
 
 			ret = ioctl (mCameraHandle, VIDIOC_QUERYBUF, &mVideoInfo->buf);
 			if (ret < 0) {
-				LOGE("Unable to query buffer (%s)", strerror(errno));
+				LOGINFO("Unable to query buffer (%s)", strerror(errno));
 				return ret;
 			}
 
@@ -293,13 +292,13 @@ namespace android {
 					mVideoInfo->buf.m.offset);
 
 			if (mVideoInfo->mem[i] == MAP_FAILED) {
-				LOGE("Unable to map buffer (%s)", strerror(errno));
+				LOGINFO("Unable to map buffer (%s)", strerror(errno));
 				return -1;
 			}
 
 			//Associate each Camera internal buffer with the one from Overlay
 			uint32_t *ptr = (uint32_t*) bufArr;
-			LOGE("xxxxxxx bufArr index %d, address %x", i, ptr[i]);
+			LOGINFO("xxxxxxx bufArr index %d, address %x", i, ptr[i]);
 			mPreviewBufs.add((int)ptr[i], i);
 		}
 
@@ -314,13 +313,13 @@ namespace android {
 		LOG_FUNCTION_NAME;
 
 		status_t ret = NO_ERROR;
-		LOGE("takePicture mBufferIndex %d", mBufferIndex);
+		LOGINFO("takePicture mBufferIndex %d", mBufferIndex);
 		char *src = (char *)mVideoInfo->mem[mBufferIndex];
 		
 		int width = mVideoInfo->width;
 		int height = mVideoInfo->height;
 		int bufferSize = width * height * 2;
-		LOGE("width %d, height %d", width, height);
+		LOGINFO("width %d, height %d", width, height);
 
 		memset(mFrameBuffer, 0, bufferSize);
 		memcpy(mFrameBuffer, src, bufferSize);
@@ -361,7 +360,7 @@ namespace android {
 
 			ret = ioctl(mCameraHandle, VIDIOC_QBUF, &mVideoInfo->buf);
 			if (ret < 0) {
-				LOGE("VIDIOC_QBUF Failed");
+				LOGINFO("VIDIOC_QBUF Failed");
 				return -EINVAL;
 			}
 
@@ -374,7 +373,7 @@ namespace android {
 
 			ret = ioctl (mCameraHandle, VIDIOC_STREAMON, &bufType);
 			if (ret < 0) {
-				LOGE("Unable to on streaming %s", strerror(errno));
+				LOGINFO("Unable to on streaming %s", strerror(errno));
 				return ret;
 			}
 
@@ -384,7 +383,7 @@ namespace android {
 		// Create and start preview thread for receiving buffers from V4L Camera
 		mPreviewThread = new PreviewThread(this);
 
-		LOGE("Created preview thread");
+		LOGINFO("Created preview thread");
 
 
 		//Update the flag to indicate we are previewing
@@ -411,13 +410,13 @@ namespace android {
 		nDequeued = 0;
 		mPreviewing = false;
 		
-		LOGE("StopStreaming isStreaming %d\n", mVideoInfo->isStreaming);
+		LOGINFO("StopStreaming isStreaming %d\n", mVideoInfo->isStreaming);
 		if (mVideoInfo->isStreaming) {
 			bufType = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 
 			ret = ioctl (mCameraHandle, VIDIOC_STREAMOFF, &bufType);
 			if (ret < 0) {
-				LOGE("Unable to off streaming %s", strerror(errno));
+				LOGINFO("Unable to off streaming %s", strerror(errno));
 				return ret;
 			}
 			mVideoInfo->isStreaming = false;
@@ -429,7 +428,7 @@ namespace android {
 		/* Unmap buffers */
 		for (int i = 0; i < mPreviewBufferCount; i++){
 			if (munmap(mVideoInfo->mem[i], mVideoInfo->buf.length) < 0)
-				LOGE("Unmap failed");
+				LOGINFO("Unmap failed");
 		}
 
 		mPreviewBufs.clear();
@@ -441,7 +440,7 @@ namespace android {
 		return ret;
 	}
 
-	char * V4LCameraAdapter::GetFrame(int &index)
+	char* V4LCameraAdapter::getFrame(int &index)
 	{
 		int ret;
 
@@ -451,7 +450,7 @@ namespace android {
 		/* DQ */
 		ret = ioctl(mCameraHandle, VIDIOC_DQBUF, &mVideoInfo->buf);
 		if (ret < 0) {
-			LOGE("GetFrame: VIDIOC_DQBUF Failed");
+			LOGINFO("getFrame: VIDIOC_DQBUF Failed");
 			return NULL;
 		}
 		nDequeued++;
@@ -535,16 +534,16 @@ namespace android {
 		if (mPreviewing)
 		{
 			int index = 0;
-			char *fp = this->GetFrame(mBufferIndex);
+			char *fp = this->getFrame(mBufferIndex);
 			if(!fp)
 				return BAD_VALUE;
 
 			int width, height;
 			mParams.getPreviewSize(&width, &height);
-			LOGE("preview size, width %d,height %d\n", width, height);
+			LOGINFO("preview size, width %d,height %d\n", width, height);
 
 			char *ptr = (char*) mPreviewBufs.keyAt(mBufferIndex);
-			LOGE("current preview buffer %x\n", ptr);	        
+			LOGINFO("current preview buffer %x\n", ptr);	        
 			memcpy(ptr, fp, width * height * 2);
 
 			frame.mFrameType = CameraFrame::PREVIEW_FRAME_SYNC;
@@ -558,11 +557,11 @@ namespace android {
 
 			ret = sendFrameToSubscribers(&frame);
 			if(ret < 0)
-				LOGE("Failed to send frame to subscribers!\n");
+				LOGINFO("Failed to send frame to subscribers!\n");
 
 			ret = ioctl(mCameraHandle, VIDIOC_QBUF, &mVideoInfo->buf);
 			if (ret < 0) {
-				LOGE("previewThread VIDIOC_QBUF Failed");
+				LOGINFO("previewThread VIDIOC_QBUF Failed");
 				return -1;
 			}
 		}
@@ -596,9 +595,9 @@ namespace android {
 
 		adapter = new V4LCameraAdapter();
 		if ( adapter ) {
-			LOGE("New OMX Camera adapter instance created for sensor %d",sensor_index);
+			LOGINFO("New OMX Camera adapter instance created for sensor %d",sensor_index);
 		} else {
-			LOGE("Camera adapter create failed!");
+			LOGINFO("Camera adapter create failed!");
 		}
 
 		LOG_FUNCTION_NAME_EXIT;

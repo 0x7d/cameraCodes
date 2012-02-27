@@ -116,7 +116,7 @@ class Encoder_libjpeg : public Thread {
         }
 
         ~Encoder_libjpeg() {
-            LOGE("~Encoder_libjpeg(%p)", this);
+            LOGINFO("~Encoder_libjpeg(%p)", this);
         }
 
         virtual bool threadLoop() {

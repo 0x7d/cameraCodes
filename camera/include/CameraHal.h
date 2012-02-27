@@ -71,19 +71,27 @@
                              GRALLOC_USAGE_SW_READ_RARELY | \
                              GRALLOC_USAGE_SW_WRITE_NEVER
 
-//Enables Absolute PPM measurements in logcat
-#define PPM_INSTRUMENTATION_ABS 1
-
 #define LOCK_BUFFER_TRIES 5
 #define HAL_PIXEL_FORMAT_NV12 0x100
 
 ///Camera HAL Logging Functions
+#define DEBUG_FLAG 1
+
 #ifndef DEBUG_LOG
 
 #undef LOG_FUNCTION_NAME
 #undef LOG_FUNCTION_NAME_EXIT
-#define LOG_FUNCTION_NAME LOGD("%d: %s() ENTER", __LINE__, __FUNCTION__);
-#define LOG_FUNCTION_NAME_EXIT LOGD("%d: %s() EXIT", __LINE__, __FUNCTION__);
+#define LOG_FUNCTION_NAME \
+	if(DEBUG_FLAG) \
+		LOGD("%d: %s() ENTER", __LINE__, __FUNCTION__);
+#define LOG_FUNCTION_NAME_EXIT \
+	if(DEBUG_FLAG) \
+		LOGD("%d: %s() EXIT", __LINE__, __FUNCTION__);
+
+#define LOGINFO \
+	if(DEBUG_FLAG) \
+		LOGE
+
 #endif
 
 
@@ -463,9 +471,7 @@ public:
     //additional methods used for memory mapping
     virtual uint32_t * getOffsets() = 0;
     virtual int getFd() = 0;
-
-    virtual int freeBuffer(void* buf) = 0;
-
+    virtual int freeBuffers(void* buf) = 0;
     virtual ~BufferProvider() {}
 };
 
@@ -664,7 +670,7 @@ public:
     virtual void* allocateBuffer(int width, int height, const char* format, int &bytes, int numBufs);
     virtual uint32_t * getOffsets();
     virtual int getFd() ;
-    virtual int freeBuffer(void* buf);
+    virtual int freeBuffers(void* buf);
 
 private:
 
@@ -845,11 +851,6 @@ public:
     virtual int disableDisplay(bool cancel_buffer = true) = 0;
     //Used for Snapshot review temp. pause
     virtual int pauseDisplay(bool pause) = 0;
-
-#if PPM_INSTRUMENTATION || PPM_INSTRUMENTATION_ABS
-    //Used for shot to snapshot measurement
-    virtual int setSnapshotTimeRef(struct timeval *refTime = NULL) = 0;
-#endif
 
     virtual int useBuffers(void *bufArr, int num) = 0;
     virtual bool supportsExternalBuffering() = 0;
@@ -1034,18 +1035,6 @@ public:
 
     /** Deinitialize CameraHal */
     void deinitialize();
-
-#if PPM_INSTRUMENTATION || PPM_INSTRUMENTATION_ABS
-
-    //Uses the constructor timestamp as a reference to calcluate the
-    // elapsed time
-    static void PPM(const char *);
-    //Uses a user provided timestamp as a reference to calcluate the
-    // elapsed time
-    static void PPM(const char *, struct timeval*, ...);
-
-#endif
-
     /** Free image bufs */
     status_t freeImageBufs();
 
@@ -1073,12 +1062,6 @@ private:
     status_t        restartPreview();
 
     status_t parseResolution(const char *resStr, int &width, int &height);
-
-    /** Allocate preview data buffers */
-    status_t allocPreviewDataBufs(size_t size, size_t bufferCount);
-
-    /** Free preview data buffers */
-    status_t freePreviewDataBufs();
 
     /** Allocate preview buffers */
     status_t allocPreviewBufs(int width, int height, const char* previewFormat, unsigned int bufferCount, unsigned int &max_queueable);
@@ -1158,19 +1141,6 @@ public:
 
 ///static member vars
 
-#if PPM_INSTRUMENTATION || PPM_INSTRUMENTATION_ABS
-
-    //Timestamp from the CameraHal constructor
-    static struct timeval ppm_start;
-    //Timestamp of the autoFocus command
-    static struct timeval mStartFocus;
-    //Timestamp of the startPreview command
-    static struct timeval mStartPreview;
-    //Timestamp of the takePicture command
-    static struct timeval mStartCapture;
-
-#endif
-
 /*----------Member variables - Private ---------------------*/
 private:
     bool mDynamicPreviewSwitch;
@@ -1210,11 +1180,6 @@ private:
 
     int mBracketRangePositive;
     int mBracketRangeNegative;
-
-    ///@todo Rename this as preview buffer provider
-    BufferProvider *mBufProvider;
-    BufferProvider *mVideoBufProvider;
-
 
     CameraProperties::Properties* mCameraProperties;
 

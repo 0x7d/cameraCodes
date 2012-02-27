@@ -26,7 +26,6 @@
 
 #include "CameraHal.h"
 #include "ANativeWindowDisplayAdapter.h"
-#include "TICameraParameters.h"
 #include "CameraProperties.h"
 #include <cutils/properties.h>
 
@@ -50,14 +49,6 @@ namespace android {
 	const uint32_t MessageNotifier::FRAME_BIT_FIELD_POSITION = 0;
 
 	/******************************************************************************/
-
-#if PPM_INSTRUMENTATION || PPM_INSTRUMENTATION_ABS
-
-	struct timeval CameraHal::mStartPreview;
-	struct timeval CameraHal::mStartFocus;
-	struct timeval CameraHal::mStartCapture;
-
-#endif
 
 	static void orientation_cb(uint32_t orientation, uint32_t tilt, void* cookie) {
 		CameraHal *camera = NULL;
@@ -152,7 +143,7 @@ namespace android {
 	void CameraHal::enableMsgType(int32_t msgType)
 	{
 		LOG_FUNCTION_NAME;
-		LOGE("enableMsgType %d\n", msgType);
+		LOGINFO("enableMsgType %d\n", msgType);
 
 		if ( ( msgType & CAMERA_MSG_SHUTTER ) && ( !mShutterEnabled ) )
 		{
@@ -174,16 +165,16 @@ namespace android {
 		{
 			if(mDisplayPaused)
 			{
-				LOGE("Preview currently paused...will enable preview callback when restarted");
+				LOGINFO("Preview currently paused...will enable preview callback when restarted");
 				msgType &= ~CAMERA_MSG_PREVIEW_FRAME;
 			}else
 			{
-				LOGE("Enabling Preview Callback");
+				LOGINFO("Enabling Preview Callback");
 			}
 		}
 		else
 		{
-			LOGE("Preview callback not enabled %x", msgType);
+			LOGINFO("Preview callback not enabled %x", msgType);
 		}
 
 
@@ -203,7 +194,7 @@ namespace android {
 	void CameraHal::disableMsgType(int32_t msgType)
 	{
 		LOG_FUNCTION_NAME;
-		LOGE("disableMsgType %d\n", msgType);
+		LOGINFO("disableMsgType %d\n", msgType);
 		{
 			Mutex::Autolock lock(mLock);
 			mMsgEnabled &= ~msgType;
@@ -211,7 +202,7 @@ namespace android {
 
 		if( msgType & CAMERA_MSG_PREVIEW_FRAME)
 		{
-			LOGE("Disabling Preview Callback");
+			LOGINFO("Disabling Preview Callback");
 		}
 
 		///Configure app callback notifier
@@ -291,7 +282,6 @@ namespace android {
 		const char *valstr = NULL;
 		const char *prevFormat;
 		char *af_coord;
-		TIUTILS::Message msg;
 		status_t ret = NO_ERROR;
 		// Needed for KEY_RECORDING_HINT
 		bool restartPreviewRequired = false;
@@ -306,24 +296,14 @@ namespace android {
 		if(!previewEnabled())
 		{
 
-			LOGE("PreviewFormat %s", params.getPreviewFormat());
+			LOGINFO("PreviewFormat %s", params.getPreviewFormat());
 
 			if ((valstr = params.getPreviewFormat()) != NULL) {
 				if ( isParameterValid(valstr, mCameraProperties->get(CameraProperties::SUPPORTED_PREVIEW_FORMATS))) {
 					mParameters.setPreviewFormat(valstr);
 				} else {
-					LOGE("Invalid preview format.Supported: %s",  mCameraProperties->get(CameraProperties::SUPPORTED_PREVIEW_FORMATS));
+					LOGINFO("Invalid preview format.Supported: %s",  mCameraProperties->get(CameraProperties::SUPPORTED_PREVIEW_FORMATS));
 					return -EINVAL;
-				}
-			}
-
-			if ((valstr = params.get(TICameraParameters::KEY_VNF)) != NULL) {
-				if ( (params.getInt(TICameraParameters::KEY_VNF)==0) || (params.getInt(TICameraParameters::KEY_VNF)==1) ) {
-					LOGE("VNF set %s", params.get(TICameraParameters::KEY_VNF));
-					mParameters.set(TICameraParameters::KEY_VNF, valstr);
-				} else {
-					LOGE("ERROR: Invalid VNF: %s", valstr);
-					ret = -EINVAL;
 				}
 			}
 
@@ -332,12 +312,12 @@ namespace android {
 				// vstab then return an error
 				if (strcmp(mCameraProperties->get(CameraProperties::VSTAB_SUPPORTED),
 							CameraParameters::TRUE) == 0) {
-					LOGE("VSTAB %s",
+					LOGINFO("VSTAB %s",
 							params.get(CameraParameters::KEY_VIDEO_STABILIZATION));
 					mParameters.set(CameraParameters::KEY_VIDEO_STABILIZATION,
 							params.get(CameraParameters::KEY_VIDEO_STABILIZATION));
 				} else if (strcmp(valstr, CameraParameters::TRUE) == 0) {
-					LOGE("ERROR: Invalid VSTAB: %s", valstr);
+					LOGINFO("ERROR: Invalid VSTAB: %s", valstr);
 					ret = -EINVAL;
 				} else {
 					mParameters.set(CameraParameters::KEY_VIDEO_STABILIZATION,
@@ -345,39 +325,11 @@ namespace android {
 				}
 			}
 
-			if( (valstr = params.get(TICameraParameters::KEY_CAP_MODE)) != NULL)
-			{
-				LOGE("Capture mode set %s", params.get(TICameraParameters::KEY_CAP_MODE));
-				mParameters.set(TICameraParameters::KEY_CAP_MODE, valstr);
-			}
-
-			if ((valstr = params.get(TICameraParameters::KEY_IPP)) != NULL) {
-				if (isParameterValid(valstr,mCameraProperties->get(CameraProperties::SUPPORTED_IPP_MODES))) {
-					LOGE("IPP mode set %s", params.get(TICameraParameters::KEY_IPP));
-					mParameters.set(TICameraParameters::KEY_IPP, valstr);
-				} else {
-					LOGE("ERROR: Invalid IPP mode: %s", valstr);
-					ret = -EINVAL;
-				}
-			}
-
-			if((valstr = params.get(TICameraParameters::KEY_S3D2D_PREVIEW)) != NULL)
-			{
-				LOGE("Stereo 3D->2D Preview mode is %s", params.get(TICameraParameters::KEY_S3D2D_PREVIEW));
-				mParameters.set(TICameraParameters::KEY_S3D2D_PREVIEW, valstr);
-			}
-
-			if((valstr = params.get(TICameraParameters::KEY_AUTOCONVERGENCE)) != NULL)
-			{
-				LOGE("AutoConvergence mode is %s", params.get(TICameraParameters::KEY_AUTOCONVERGENCE));
-				mParameters.set(TICameraParameters::KEY_AUTOCONVERGENCE, valstr);
-			}
-
 		}
 
 		params.getPreviewSize(&w, &h);
 		if (w == -1 && h == -1) {
-			LOGE("Unable to get preview size");
+			LOGINFO("Unable to get preview size");
 			return -EINVAL;
 		}
 
@@ -385,18 +337,12 @@ namespace android {
 		mParameters.getPreviewSize(&oldWidth, &oldHeight);
 
 		int orientation =0;
-		if((valstr = params.get(TICameraParameters::KEY_SENSOR_ORIENTATION)) != NULL)
-		{
-			LOGE("Sensor Orientation is set to %s", params.get(TICameraParameters::KEY_SENSOR_ORIENTATION));
-			mParameters.set(TICameraParameters::KEY_SENSOR_ORIENTATION, valstr);
-			orientation = params.getInt(TICameraParameters::KEY_SENSOR_ORIENTATION);
-		}
 
 		if(orientation ==90 || orientation ==270)
 		{
 			/*if ( !isResolutionValid(h,w, mCameraProperties->get(CameraProperties::SUPPORTED_PREVIEW_SIZES)))
 			  {
-			  LOGE("Invalid preview resolution %d x %d", w, h);
+			  LOGINFO("Invalid preview resolution %d x %d", w, h);
 			  return -EINVAL;
 			  }
 			  else*/
@@ -410,7 +356,7 @@ namespace android {
 		{
 			/*if ( !isResolutionValid(w, h, mCameraProperties->get(CameraProperties::SUPPORTED_PREVIEW_SIZES)))
 			  {
-			  LOGE("Invalid preview resolution %d x %d", w, h);
+			  LOGINFO("Invalid preview resolution %d x %d", w, h);
 			  return -EINVAL;
 			  }
 			  else*/
@@ -424,7 +370,7 @@ namespace android {
 			restartPreviewRequired |= true;
 		}
 
-		LOGE("PreviewResolution by App %d x %d", w, h);
+		LOGINFO("PreviewResolution by App %d x %d", w, h);
 
 		// Handle RECORDING_HINT to Set/Reset Video Mode Parameters
 		valstr = params.get(CameraParameters::KEY_RECORDING_HINT);
@@ -432,21 +378,21 @@ namespace android {
 		{
 			if(strcmp(valstr, CameraParameters::TRUE) == 0)
 			{
-				LOGE("Recording Hint is set to %s", valstr);
+				LOGINFO("Recording Hint is set to %s", valstr);
 				mParameters.set(CameraParameters::KEY_RECORDING_HINT, valstr);
 				videoMode = true;
 				int w, h;
 
 				params.getPreviewSize(&w, &h);
-				LOGE("%s Preview Width=%d Height=%d\n", __FUNCTION__, w, h);
+				LOGINFO("%s Preview Width=%d Height=%d\n", __FUNCTION__, w, h);
 				//HACK FOR MMS
 				mVideoWidth = w;
 				mVideoHeight = h;
-				LOGE("%s Video Width=%d Height=%d\n", __FUNCTION__, mVideoWidth, mVideoHeight);
+				LOGINFO("%s Video Width=%d Height=%d\n", __FUNCTION__, mVideoWidth, mVideoHeight);
 
 				setPreferredPreviewRes(w, h);
 				mParameters.getPreviewSize(&w, &h);
-				LOGE("%s Preview Width=%d Height=%d\n", __FUNCTION__, w, h);
+				LOGINFO("%s Preview Width=%d Height=%d\n", __FUNCTION__, w, h);
 				//Avoid restarting preview for MMS HACK
 				if ((w != mVideoWidth) && (h != mVideoHeight))
 				{
@@ -457,14 +403,14 @@ namespace android {
 			}
 			else if(strcmp(valstr, CameraParameters::FALSE) == 0)
 			{
-				LOGE("Recording Hint is set to %s", valstr);
+				LOGINFO("Recording Hint is set to %s", valstr);
 				mParameters.set(CameraParameters::KEY_RECORDING_HINT, valstr);
 				restartPreviewRequired |= resetVideoModeParameters();
 				params.getPreviewSize(&mVideoWidth, &mVideoHeight);
 			}
 			else
 			{
-				LOGE("Invalid RECORDING_HINT");
+				LOGINFO("Invalid RECORDING_HINT");
 				return -EINVAL;
 			}
 		}
@@ -474,7 +420,7 @@ namespace android {
 			// If VideoRecording activity sets KEY_RECORDING_HINT to TRUE and
 			// ImageCapture activity doesnot set KEY_RECORDING_HINT to FALSE (i.e. simply NULL),
 			// then Video Mode parameters may remain present in ImageCapture activity as well.
-			LOGE("Recording Hint is set to NULL");
+			LOGINFO("Recording Hint is set to NULL");
 			mParameters.set(CameraParameters::KEY_RECORDING_HINT, "");
 			restartPreviewRequired |= resetVideoModeParameters();
 			params.getPreviewSize(&mVideoWidth, &mVideoHeight);
@@ -482,7 +428,7 @@ namespace android {
 
 		if ((valstr = params.get(CameraParameters::KEY_FOCUS_MODE)) != NULL) {
 			if (isParameterValid(valstr, mCameraProperties->get(CameraProperties::SUPPORTED_FOCUS_MODES))) {
-				LOGE("Focus mode set %s", params.get(CameraParameters::KEY_FOCUS_MODE));
+				LOGINFO("Focus mode set %s", params.get(CameraParameters::KEY_FOCUS_MODE));
 
 				// we need to take a decision on the capture mode based on whether CAF picture or
 				// video is chosen so the behavior of each is consistent to the application
@@ -494,7 +440,7 @@ namespace android {
 
 				mParameters.set(CameraParameters::KEY_FOCUS_MODE, valstr);
 			} else {
-				LOGE("ERROR: Invalid FOCUS mode = %s", valstr);
+				LOGINFO("ERROR: Invalid FOCUS mode = %s", valstr);
 				ret = -EINVAL;
 			}
 		}
@@ -504,7 +450,7 @@ namespace android {
 			if (isParameterValid(params.getPictureFormat(),mCameraProperties->get(CameraProperties::SUPPORTED_PICTURE_FORMATS))) {
 				mParameters.setPictureFormat(valstr);
 			} else {
-				LOGE("ERROR: Invalid picture format: %s",valstr);
+				LOGINFO("ERROR: Invalid picture format: %s",valstr);
 				ret = -EINVAL;
 			}
 		}
@@ -513,29 +459,19 @@ namespace android {
 		if ( isResolutionValid(w, h, mCameraProperties->get(CameraProperties::SUPPORTED_PICTURE_SIZES))) {
 			mParameters.setPictureSize(w, h);
 		} else {
-			LOGE("ERROR: Invalid picture resolution %dx%d", w, h);
+			LOGINFO("ERROR: Invalid picture resolution %dx%d", w, h);
 			ret = -EINVAL;
 		}
 
-		LOGE("Picture Size by App %d x %d", w, h);
-
-		if ((valstr = params.get(TICameraParameters::KEY_BURST)) != NULL) {
-			if (params.getInt(TICameraParameters::KEY_BURST) >=0) {
-				LOGE("Burst set %s", params.get(TICameraParameters::KEY_BURST));
-				mParameters.set(TICameraParameters::KEY_BURST, valstr);
-			} else {
-				LOGE("ERROR: Invalid Burst value: %s",valstr);
-				ret = -EINVAL;
-			}
-		}
+		LOGINFO("Picture Size by App %d x %d", w, h);
 
 		framerate = params.getPreviewFrameRate();
 		valstr = params.get(CameraParameters::KEY_PREVIEW_FPS_RANGE);
-		LOGE("FRAMERATE %d", framerate);
+		LOGINFO("FRAMERATE %d", framerate);
 
-		LOGE("Passed FRR: %s, Supported FRR %s", valstr
+		LOGINFO("Passed FRR: %s, Supported FRR %s", valstr
 				, mCameraProperties->get(CameraProperties::FRAMERATE_RANGE_SUPPORTED));
-		LOGE("Passed FR: %d, Supported FR %s", framerate
+		LOGINFO("Passed FR: %d, Supported FR %s", framerate
 				, mCameraProperties->get(CameraProperties::SUPPORTED_PREVIEW_FRAME_RATES));
 
 
@@ -545,7 +481,7 @@ namespace android {
 				|| !isParameterValid(framerate,
 					mCameraProperties->get(CameraProperties::SUPPORTED_PREVIEW_FRAME_RATES)))
 		{
-			LOGE("Invalid frame rate range or frame rate");
+			LOGINFO("Invalid frame rate range or frame rate");
 			return -EINVAL;
 		}
 
@@ -557,12 +493,12 @@ namespace android {
 		{
 			// APP wants to set FPS range
 			//Set framerate = MAXFPS
-			LOGE("APP IS CHANGING FRAME RATE RANGE");
+			LOGINFO("APP IS CHANGING FRAME RATE RANGE");
 			params.getPreviewFpsRange(&minFPS, &maxFPS);
 
 			if ( ( 0 > minFPS ) || ( 0 > maxFPS ) )
 			{
-				LOGE("ERROR: FPS Range is negative!");
+				LOGINFO("ERROR: FPS Range is negative!");
 				return -EINVAL;
 			}
 
@@ -574,7 +510,7 @@ namespace android {
 			if ( framerate != atoi(mCameraProperties->get(CameraProperties::PREVIEW_FRAME_RATE)) )
 			{
 				selectFPSRange(framerate, &minFPS, &maxFPS);
-				LOGE("Select FPS Range %d %d", minFPS, maxFPS);
+				LOGINFO("Select FPS Range %d %d", minFPS, maxFPS);
 			}
 			else
 			{
@@ -596,196 +532,90 @@ namespace android {
 
 		}
 
-		LOGE("FPS Range = %s", valstr);
-		LOGE("DEFAULT FPS Range = %s", mCameraProperties->get(CameraProperties::FRAMERATE_RANGE));
+		LOGINFO("FPS Range = %s", valstr);
+		LOGINFO("DEFAULT FPS Range = %s", mCameraProperties->get(CameraProperties::FRAMERATE_RANGE));
 
 		minFPS /= CameraHal::VFR_SCALE;
 		maxFPS /= CameraHal::VFR_SCALE;
 
 		if ( ( 0 == minFPS ) || ( 0 == maxFPS ) )
 		{
-			LOGE("ERROR: FPS Range is invalid!");
+			LOGINFO("ERROR: FPS Range is invalid!");
 			ret = -EINVAL;
 		}
 
 		if ( maxFPS < minFPS )
 		{
-			LOGE("ERROR: Max FPS is smaller than Min FPS!");
+			LOGINFO("ERROR: Max FPS is smaller than Min FPS!");
 			ret = -EINVAL;
 		}
-		LOGE("SET FRAMERATE %d", framerate);
+		LOGINFO("SET FRAMERATE %d", framerate);
 		mParameters.setPreviewFrameRate(framerate);
 		mParameters.set(CameraParameters::KEY_PREVIEW_FPS_RANGE, params.get(CameraParameters::KEY_PREVIEW_FPS_RANGE));
 
-		LOGE("FPS Range [%d, %d]", minFPS, maxFPS);
-		mParameters.set(TICameraParameters::KEY_MINFRAMERATE, minFPS);
-		mParameters.set(TICameraParameters::KEY_MAXFRAMERATE, maxFPS);
-
-		if( ( valstr = params.get(TICameraParameters::KEY_GBCE) ) != NULL )
-		{
-			LOGE("GBCE Value = %s", valstr);
-			mParameters.set(TICameraParameters::KEY_GBCE, valstr);
-		}
-
-		if( ( valstr = params.get(TICameraParameters::KEY_GLBCE) ) != NULL )
-		{
-			LOGE("GLBCE Value = %s", valstr);
-			mParameters.set(TICameraParameters::KEY_GLBCE, valstr);
-		}
-
-		///Update the current parameter set
-		if( (valstr = params.get(TICameraParameters::KEY_AUTOCONVERGENCE)) != NULL)
-		{
-			LOGE("AutoConvergence Mode is set = %s", params.get(TICameraParameters::KEY_AUTOCONVERGENCE));
-			mParameters.set(TICameraParameters::KEY_AUTOCONVERGENCE, valstr);
-		}
-
-		if( (valstr = params.get(TICameraParameters::KEY_MANUALCONVERGENCE_VALUES)) !=NULL )
-		{
-			LOGE("ManualConvergence Value = %s", params.get(TICameraParameters::KEY_MANUALCONVERGENCE_VALUES));
-			mParameters.set(TICameraParameters::KEY_MANUALCONVERGENCE_VALUES, valstr);
-		}
-
-		if ((valstr = params.get(TICameraParameters::KEY_EXPOSURE_MODE)) != NULL) {
-			if (isParameterValid(valstr, mCameraProperties->get(CameraProperties::SUPPORTED_EXPOSURE_MODES))) {
-				LOGE("Exposure set = %s", valstr);
-				mParameters.set(TICameraParameters::KEY_EXPOSURE_MODE, valstr);
-			} else {
-				LOGE("ERROR: Invalid Exposure  = %s", valstr);
-				ret = -EINVAL;
-			}
-		}
-
 		if ((valstr = params.get(CameraParameters::KEY_WHITE_BALANCE)) != NULL) {
 			if ( isParameterValid(valstr, mCameraProperties->get(CameraProperties::SUPPORTED_WHITE_BALANCE))) {
-				LOGE("White balance set %s", valstr);
+				LOGINFO("White balance set %s", valstr);
 				mParameters.set(CameraParameters::KEY_WHITE_BALANCE, valstr);
 			} else {
-				LOGE("ERROR: Invalid white balance  = %s", valstr);
+				LOGINFO("ERROR: Invalid white balance  = %s", valstr);
 				ret = -EINVAL;
 			}
 		}
 
-		if ((valstr = params.get(TICameraParameters::KEY_CONTRAST)) != NULL) {
-			if (params.getInt(TICameraParameters::KEY_CONTRAST) >= 0 ) {
-				LOGE("Contrast set %s", valstr);
-				mParameters.set(TICameraParameters::KEY_CONTRAST, valstr);
-			} else {
-				LOGE("ERROR: Invalid Contrast  = %s", valstr);
-				ret = -EINVAL;
-			}
-		}
-
-		if ((valstr =params.get(TICameraParameters::KEY_SHARPNESS)) != NULL) {
-			if (params.getInt(TICameraParameters::KEY_SHARPNESS) >= 0 ) {
-				LOGE("Sharpness set %s", valstr);
-				mParameters.set(TICameraParameters::KEY_SHARPNESS, valstr);
-			} else {
-				LOGE("ERROR: Invalid Sharpness = %s", valstr);
-				ret = -EINVAL;
-			}
-		}
-
-		if ((valstr = params.get(TICameraParameters::KEY_SATURATION)) != NULL) {
-			if (params.getInt(TICameraParameters::KEY_SATURATION) >= 0 ) {
-				LOGE("Saturation set %s", valstr);
-				mParameters.set(TICameraParameters::KEY_SATURATION, valstr);
-			} else {
-				LOGE("ERROR: Invalid Saturation = %s", valstr);
-				ret = -EINVAL;
-			}
-		}
-
-		if ((valstr = params.get(TICameraParameters::KEY_BRIGHTNESS)) != NULL) {
-			if (params.getInt(TICameraParameters::KEY_BRIGHTNESS) >= 0 ) {
-				LOGE("Brightness set %s", valstr);
-				mParameters.set(TICameraParameters::KEY_BRIGHTNESS, valstr);
-			} else {
-				LOGE("ERROR: Invalid Brightness = %s", valstr);
-				ret = -EINVAL;
-			}
-		}
 
 		if ((valstr = params.get(CameraParameters::KEY_ANTIBANDING)) != NULL) {
 			if (isParameterValid(valstr, mCameraProperties->get(CameraProperties::SUPPORTED_ANTIBANDING))) {
-				LOGE("Antibanding set %s", valstr);
+				LOGINFO("Antibanding set %s", valstr);
 				mParameters.set(CameraParameters::KEY_ANTIBANDING, valstr);
 			} else {
-				LOGE("ERROR: Invalid Antibanding = %s", valstr);
-				ret = -EINVAL;
-			}
-		}
-
-		if ((valstr = params.get(TICameraParameters::KEY_ISO)) != NULL) {
-			if (isParameterValid(valstr, mCameraProperties->get(CameraProperties::SUPPORTED_ISO_VALUES))) {
-				LOGE("ISO set %s", valstr);
-				mParameters.set(TICameraParameters::KEY_ISO, valstr);
-			} else {
-				LOGE("ERROR: Invalid ISO = %s", valstr);
+				LOGINFO("ERROR: Invalid Antibanding = %s", valstr);
 				ret = -EINVAL;
 			}
 		}
 
 		if( (valstr = params.get(CameraParameters::KEY_FOCUS_AREAS)) != NULL )
 		{
-			LOGE("Focus areas position set %s", params.get(CameraParameters::KEY_FOCUS_AREAS));
+			LOGINFO("Focus areas position set %s", params.get(CameraParameters::KEY_FOCUS_AREAS));
 			mParameters.set(CameraParameters::KEY_FOCUS_AREAS, valstr);
 		}
 
-		if( (valstr = params.get(TICameraParameters::KEY_MEASUREMENT_ENABLE)) != NULL )
-		{
-			LOGE("Measurements set to %s", params.get(TICameraParameters::KEY_MEASUREMENT_ENABLE));
-			mParameters.set(TICameraParameters::KEY_MEASUREMENT_ENABLE, valstr);
-
-			if (strcmp(valstr, (const char *) TICameraParameters::MEASUREMENT_ENABLE) == 0)
-			{
-				mMeasurementEnabled = true;
-			}
-			else if (strcmp(valstr, (const char *) TICameraParameters::MEASUREMENT_DISABLE) == 0)
-			{
-				mMeasurementEnabled = false;
-			}
-			else
-			{
-				mMeasurementEnabled = false;
-			}
-		}
 
 		if( (valstr = params.get(CameraParameters::KEY_EXPOSURE_COMPENSATION)) != NULL)
 		{
-			LOGE("Exposure compensation set %s", params.get(CameraParameters::KEY_EXPOSURE_COMPENSATION));
+			LOGINFO("Exposure compensation set %s", params.get(CameraParameters::KEY_EXPOSURE_COMPENSATION));
 			mParameters.set(CameraParameters::KEY_EXPOSURE_COMPENSATION, valstr);
 		}
 
 		if ((valstr = params.get(CameraParameters::KEY_SCENE_MODE)) != NULL) {
 			if (isParameterValid(valstr, mCameraProperties->get(CameraProperties::SUPPORTED_SCENE_MODES))) {
-				LOGE("Scene mode set %s", valstr);
+				LOGINFO("Scene mode set %s", valstr);
 				doesSetParameterNeedUpdate(valstr,
 						mParameters.get(CameraParameters::KEY_SCENE_MODE),
 						updateRequired);
 				mParameters.set(CameraParameters::KEY_SCENE_MODE, valstr);
 			} else {
-				LOGE("ERROR: Invalid Scene mode = %s", valstr);
+				LOGINFO("ERROR: Invalid Scene mode = %s", valstr);
 				ret = -EINVAL;
 			}
 		}
 
 		if ((valstr = params.get(CameraParameters::KEY_FLASH_MODE)) != NULL) {
 			if (isParameterValid(valstr, mCameraProperties->get(CameraProperties::SUPPORTED_FLASH_MODES))) {
-				LOGE("Flash mode set %s", valstr);
+				LOGINFO("Flash mode set %s", valstr);
 				mParameters.set(CameraParameters::KEY_FLASH_MODE, valstr);
 			} else {
-				LOGE("ERROR: Invalid Flash mode = %s", valstr);
+				LOGINFO("ERROR: Invalid Flash mode = %s", valstr);
 				ret = -EINVAL;
 			}
 		}
 
 		if ((valstr = params.get(CameraParameters::KEY_EFFECT)) != NULL) {
 			if (isParameterValid(valstr, mCameraProperties->get(CameraProperties::SUPPORTED_EFFECTS))) {
-				LOGE("Effect set %s", valstr);
+				LOGINFO("Effect set %s", valstr);
 				mParameters.set(CameraParameters::KEY_EFFECT, valstr);
 			} else {
-				LOGE("ERROR: Invalid Effect = %s", valstr);
+				LOGINFO("ERROR: Invalid Effect = %s", valstr);
 				ret = -EINVAL;
 			}
 		}
@@ -793,41 +623,41 @@ namespace android {
 		if(( (valstr = params.get(CameraParameters::KEY_ROTATION)) != NULL)
 				&& (params.getInt(CameraParameters::KEY_ROTATION) >=0))
 		{
-			LOGE("Rotation set %s", params.get(CameraParameters::KEY_ROTATION));
+			LOGINFO("Rotation set %s", params.get(CameraParameters::KEY_ROTATION));
 			mParameters.set(CameraParameters::KEY_ROTATION, valstr);
 		}
 
 		if(( (valstr = params.get(CameraParameters::KEY_JPEG_QUALITY)) != NULL)
 				&& (params.getInt(CameraParameters::KEY_JPEG_QUALITY) >=0))
 		{
-			LOGE("Jpeg quality set %s", params.get(CameraParameters::KEY_JPEG_QUALITY));
+			LOGINFO("Jpeg quality set %s", params.get(CameraParameters::KEY_JPEG_QUALITY));
 			mParameters.set(CameraParameters::KEY_JPEG_QUALITY, valstr);
 		}
 
 		if(( (valstr = params.get(CameraParameters::KEY_JPEG_THUMBNAIL_WIDTH)) != NULL)
 				&& (params.getInt(CameraParameters::KEY_JPEG_THUMBNAIL_WIDTH) >=0))
 		{
-			LOGE("Thumbnail width set %s", params.get(CameraParameters::KEY_JPEG_THUMBNAIL_WIDTH));
+			LOGINFO("Thumbnail width set %s", params.get(CameraParameters::KEY_JPEG_THUMBNAIL_WIDTH));
 			mParameters.set(CameraParameters::KEY_JPEG_THUMBNAIL_WIDTH, valstr);
 		}
 
 		if(( (valstr = params.get(CameraParameters::KEY_JPEG_THUMBNAIL_HEIGHT)) != NULL)
 				&& (params.getInt(CameraParameters::KEY_JPEG_THUMBNAIL_HEIGHT) >=0))
 		{
-			LOGE("Thumbnail width set %s", params.get(CameraParameters::KEY_JPEG_THUMBNAIL_HEIGHT));
+			LOGINFO("Thumbnail width set %s", params.get(CameraParameters::KEY_JPEG_THUMBNAIL_HEIGHT));
 			mParameters.set(CameraParameters::KEY_JPEG_THUMBNAIL_HEIGHT, valstr);
 		}
 
 		if(( (valstr = params.get(CameraParameters::KEY_JPEG_THUMBNAIL_QUALITY)) != NULL )
 				&& (params.getInt(CameraParameters::KEY_JPEG_THUMBNAIL_QUALITY) >=0))
 		{
-			LOGE("Thumbnail quality set %s", params.get(CameraParameters::KEY_JPEG_THUMBNAIL_QUALITY));
+			LOGINFO("Thumbnail quality set %s", params.get(CameraParameters::KEY_JPEG_THUMBNAIL_QUALITY));
 			mParameters.set(CameraParameters::KEY_JPEG_THUMBNAIL_QUALITY, valstr);
 		}
 
 		if( (valstr = params.get(CameraParameters::KEY_GPS_LATITUDE)) != NULL )
 		{
-			LOGE("GPS latitude set %s", params.get(CameraParameters::KEY_GPS_LATITUDE));
+			LOGINFO("GPS latitude set %s", params.get(CameraParameters::KEY_GPS_LATITUDE));
 			mParameters.set(CameraParameters::KEY_GPS_LATITUDE, valstr);
 		}else{
 			mParameters.remove(CameraParameters::KEY_GPS_LATITUDE);
@@ -835,7 +665,7 @@ namespace android {
 
 		if( (valstr = params.get(CameraParameters::KEY_GPS_LONGITUDE)) != NULL )
 		{
-			LOGE("GPS longitude set %s", params.get(CameraParameters::KEY_GPS_LONGITUDE));
+			LOGINFO("GPS longitude set %s", params.get(CameraParameters::KEY_GPS_LONGITUDE));
 			mParameters.set(CameraParameters::KEY_GPS_LONGITUDE, valstr);
 		}else{
 			mParameters.remove(CameraParameters::KEY_GPS_LONGITUDE);
@@ -843,7 +673,7 @@ namespace android {
 
 		if( (valstr = params.get(CameraParameters::KEY_GPS_ALTITUDE)) != NULL )
 		{
-			LOGE("GPS altitude set %s", params.get(CameraParameters::KEY_GPS_ALTITUDE));
+			LOGINFO("GPS altitude set %s", params.get(CameraParameters::KEY_GPS_ALTITUDE));
 			mParameters.set(CameraParameters::KEY_GPS_ALTITUDE, valstr);
 		}else{
 			mParameters.remove(CameraParameters::KEY_GPS_ALTITUDE);
@@ -851,83 +681,37 @@ namespace android {
 
 		if( (valstr = params.get(CameraParameters::KEY_GPS_TIMESTAMP)) != NULL )
 		{
-			LOGE("GPS timestamp set %s", params.get(CameraParameters::KEY_GPS_TIMESTAMP));
+			LOGINFO("GPS timestamp set %s", params.get(CameraParameters::KEY_GPS_TIMESTAMP));
 			mParameters.set(CameraParameters::KEY_GPS_TIMESTAMP, valstr);
 		}else{
 			mParameters.remove(CameraParameters::KEY_GPS_TIMESTAMP);
 		}
 
-		if( (valstr = params.get(TICameraParameters::KEY_GPS_DATESTAMP)) != NULL )
-		{
-			LOGE("GPS datestamp set %s", params.get(TICameraParameters::KEY_GPS_DATESTAMP));
-			mParameters.set(TICameraParameters::KEY_GPS_DATESTAMP, valstr);
-		}else{
-			mParameters.remove(TICameraParameters::KEY_GPS_DATESTAMP);
-		}
-
 		if( (valstr = params.get(CameraParameters::KEY_GPS_PROCESSING_METHOD)) != NULL )
 		{
-			LOGE("GPS processing method set %s", params.get(CameraParameters::KEY_GPS_PROCESSING_METHOD));
+			LOGINFO("GPS processing method set %s", params.get(CameraParameters::KEY_GPS_PROCESSING_METHOD));
 			mParameters.set(CameraParameters::KEY_GPS_PROCESSING_METHOD, valstr);
 		}else{
 			mParameters.remove(CameraParameters::KEY_GPS_PROCESSING_METHOD);
 		}
 
-		if( (valstr = params.get(TICameraParameters::KEY_GPS_MAPDATUM )) != NULL )
-		{
-			LOGE("GPS MAPDATUM set %s", params.get(TICameraParameters::KEY_GPS_MAPDATUM));
-			mParameters.set(TICameraParameters::KEY_GPS_MAPDATUM, valstr);
-		}else{
-			mParameters.remove(TICameraParameters::KEY_GPS_MAPDATUM);
-		}
-
-		if( (valstr = params.get(TICameraParameters::KEY_GPS_VERSION)) != NULL )
-		{
-			LOGE("GPS MAPDATUM set %s", params.get(TICameraParameters::KEY_GPS_VERSION));
-			mParameters.set(TICameraParameters::KEY_GPS_VERSION, valstr);
-		}else{
-			mParameters.remove(TICameraParameters::KEY_GPS_VERSION);
-		}
-
-		if( (valstr = params.get(TICameraParameters::KEY_EXIF_MODEL)) != NULL )
-		{
-			LOGE("EXIF Model set %s", params.get(TICameraParameters::KEY_EXIF_MODEL));
-			mParameters.set(TICameraParameters::KEY_EXIF_MODEL, valstr);
-		}
-
-		if( (valstr = params.get(TICameraParameters::KEY_EXIF_MAKE)) != NULL )
-		{
-			LOGE("EXIF Make set %s", params.get(TICameraParameters::KEY_EXIF_MAKE));
-			mParameters.set(TICameraParameters::KEY_EXIF_MAKE, valstr);
-		}
-
-		if( (valstr = params.get(TICameraParameters::KEY_EXP_BRACKETING_RANGE)) != NULL )
-		{
-			LOGE("Exposure Bracketing set %s", params.get(TICameraParameters::KEY_EXP_BRACKETING_RANGE));
-			mParameters.set(TICameraParameters::KEY_EXP_BRACKETING_RANGE, valstr);
-		}
-		else
-		{
-			mParameters.remove(TICameraParameters::KEY_EXP_BRACKETING_RANGE);
-		}
-
 		if ((valstr = params.get(CameraParameters::KEY_ZOOM)) != NULL ) {
 			if ((params.getInt(CameraParameters::KEY_ZOOM) >= 0 ) &&
 					(params.getInt(CameraParameters::KEY_ZOOM) <= mMaxZoomSupported )) {
-				LOGE("Zoom set %s", valstr);
+				LOGINFO("Zoom set %s", valstr);
 				doesSetParameterNeedUpdate(valstr,
 						mParameters.get(CameraParameters::KEY_ZOOM),
 						updateRequired);
 				mParameters.set(CameraParameters::KEY_ZOOM, valstr);
 			} else {
-				LOGE("ERROR: Invalid Zoom: %s", valstr);
+				LOGINFO("ERROR: Invalid Zoom: %s", valstr);
 				ret = -EINVAL;
 			}
 		}
 
 		if( (valstr = params.get(CameraParameters::KEY_AUTO_EXPOSURE_LOCK)) != NULL )
 		{
-			LOGE("Auto Exposure Lock set %s", params.get(CameraParameters::KEY_AUTO_EXPOSURE_LOCK));
+			LOGINFO("Auto Exposure Lock set %s", params.get(CameraParameters::KEY_AUTO_EXPOSURE_LOCK));
 			doesSetParameterNeedUpdate(valstr,
 					mParameters.get(CameraParameters::KEY_AUTO_EXPOSURE_LOCK),
 					updateRequired);
@@ -936,7 +720,7 @@ namespace android {
 
 		if( (valstr = params.get(CameraParameters::KEY_AUTO_WHITEBALANCE_LOCK)) != NULL )
 		{
-			LOGE("Auto WhiteBalance Lock set %s", params.get(CameraParameters::KEY_AUTO_WHITEBALANCE_LOCK));
+			LOGINFO("Auto WhiteBalance Lock set %s", params.get(CameraParameters::KEY_AUTO_WHITEBALANCE_LOCK));
 			doesSetParameterNeedUpdate(valstr,
 					mParameters.get(CameraParameters::KEY_AUTO_WHITEBALANCE_LOCK),
 					updateRequired);
@@ -944,7 +728,7 @@ namespace android {
 		}
 		if( (valstr = params.get(CameraParameters::KEY_METERING_AREAS)) != NULL )
 		{
-			LOGE("Metering areas position set %s", params.get(CameraParameters::KEY_METERING_AREAS));
+			LOGINFO("Metering areas position set %s", params.get(CameraParameters::KEY_METERING_AREAS));
 			mParameters.set(CameraParameters::KEY_METERING_AREAS, valstr);
 		}
 
@@ -958,84 +742,6 @@ namespace android {
 			ret |= mCameraAdapter->setParameters(adapterParams);
 		}
 
-		if( NULL != params.get(TICameraParameters::KEY_TEMP_BRACKETING_RANGE_POS) )
-		{
-			int posBracketRange = params.getInt(TICameraParameters::KEY_TEMP_BRACKETING_RANGE_POS);
-			if ( 0 < posBracketRange )
-			{
-				mBracketRangePositive = posBracketRange;
-			}
-		}
-		LOGE("Positive bracketing range %d", mBracketRangePositive);
-
-
-		if( NULL != params.get(TICameraParameters::KEY_TEMP_BRACKETING_RANGE_NEG) )
-		{
-			int negBracketRange = params.getInt(TICameraParameters::KEY_TEMP_BRACKETING_RANGE_NEG);
-			if ( 0 < negBracketRange )
-			{
-				mBracketRangeNegative = negBracketRange;
-			}
-		}
-		LOGE("Negative bracketing range %d", mBracketRangeNegative);
-
-		if( ( (valstr = params.get(TICameraParameters::KEY_TEMP_BRACKETING)) != NULL) &&
-				( strcmp(valstr, TICameraParameters::BRACKET_ENABLE) == 0 ))
-		{
-			if ( !mBracketingEnabled )
-			{
-				LOGE("Enabling bracketing");
-				mBracketingEnabled = true;
-
-				//Wait for AF events to enable bracketing
-				if ( NULL != mCameraAdapter )
-				{
-					setEventProvider( CameraHalEvent::ALL_EVENTS, mCameraAdapter );
-				}
-			}
-			else
-			{
-				LOGE("Bracketing already enabled");
-			}
-		}
-		else if ( ( (valstr = params.get(TICameraParameters::KEY_TEMP_BRACKETING)) != NULL ) &&
-				( strcmp(valstr, TICameraParameters::BRACKET_DISABLE) == 0 ))
-		{
-			LOGE("Disabling bracketing");
-
-			mBracketingEnabled = false;
-			stopImageBracketing();
-
-			//Remove AF events subscription
-			if ( NULL != mEventProvider )
-			{
-				mEventProvider->disableEventNotification( CameraHalEvent::ALL_EVENTS );
-				delete mEventProvider;
-				mEventProvider = NULL;
-			}
-
-		}
-
-		if( ( (valstr = params.get(TICameraParameters::KEY_SHUTTER_ENABLE)) != NULL ) &&
-				( strcmp(valstr, TICameraParameters::SHUTTER_ENABLE) == 0 ))
-		{
-			LOGE("Enabling shutter sound");
-
-			mShutterEnabled = true;
-			mMsgEnabled |= CAMERA_MSG_SHUTTER;
-			mParameters.set(TICameraParameters::KEY_SHUTTER_ENABLE, valstr);
-		}
-		else if ( ( (valstr = params.get(TICameraParameters::KEY_SHUTTER_ENABLE)) != NULL ) &&
-				( strcmp(valstr, TICameraParameters::SHUTTER_DISABLE) == 0 ))
-		{
-			LOGE("Disabling shutter sound");
-
-			mShutterEnabled = false;
-			mMsgEnabled &= ~CAMERA_MSG_SHUTTER;
-			mParameters.set(TICameraParameters::KEY_SHUTTER_ENABLE, valstr);
-		}
-
-
 		//On fail restore old parameters
 		if ( NO_ERROR != ret ) {
 			mParameters.unflatten(oldParams.flatten());
@@ -1048,17 +754,17 @@ namespace android {
 		// Restart Preview if needed by KEY_RECODING_HINT only if preview is already running.
 		// If preview is not started yet, Video Mode parameters will take effect on next startPreview()
 		if (restartPreviewRequired && previewEnabled() && !mRecordingEnabled) {
-			LOGE("Restarting Preview");
+			LOGINFO("Restarting Preview");
 			ret = restartPreview();
 		} else if (restartPreviewRequired && !previewEnabled() &&
 				mDisplayPaused && !mRecordingEnabled) {
-			LOGE("Stopping Preview");
+			LOGINFO("Stopping Preview");
 			forceStopPreview();
 		}
 
 		if (ret != NO_ERROR)
 		{
-			LOGE("Failed to restart Preview");
+			LOGINFO("Failed to restart Preview");
 			return ret;
 		}
 
@@ -1091,23 +797,21 @@ namespace android {
 					buffercount);
 
 			if (NULL == mPreviewBufs ) {
-				LOGE("Couldn't allocate preview buffers");
+				LOGINFO("Couldn't allocate preview buffers");
 				return NO_MEMORY;
 			}
 
 			mPreviewOffsets = (uint32_t *) mDisplayAdapter->getOffsets();
 			if ( NULL == mPreviewOffsets ) {
-				LOGE("Buffer mapping failed");
+				LOGINFO("Buffer mapping failed");
 				return BAD_VALUE;
 			}
 
 			mPreviewFd = mDisplayAdapter->getFd();
 			if ( -1 == mPreviewFd ) {
-				LOGE("Invalid handle");
+				LOGINFO("Invalid handle");
 				return BAD_VALUE;
 			}
-
-			mBufProvider = (BufferProvider*) mDisplayAdapter.get();
 
 			ret = mDisplayAdapter->maxQueueableBuffers(max_queueable);
 			if (ret != NO_ERROR) {
@@ -1127,93 +831,15 @@ namespace android {
 		status_t ret = NO_ERROR;
 		LOG_FUNCTION_NAME;
 
-		LOGE("mPreviewBufs = 0x%x", (unsigned int)mPreviewBufs);
+		LOGINFO("mPreviewBufs = 0x%x", (unsigned int)mPreviewBufs);
 		if(mPreviewBufs)
 		{
-			///@todo Pluralise the name of this method to freeBuffers
-			ret = mBufProvider->freeBuffer(mPreviewBufs);
+			mDisplayAdapter->freeBuffers(mPreviewBufs);
 			mPreviewBufs = NULL;
 			LOG_FUNCTION_NAME_EXIT;
 			return ret;
 		}
 		LOG_FUNCTION_NAME_EXIT;
-		return ret;
-	}
-
-
-	status_t CameraHal::allocPreviewDataBufs(size_t size, size_t bufferCount)
-	{
-		status_t ret = NO_ERROR;
-		int bytes;
-
-		LOG_FUNCTION_NAME;
-
-		bytes = size;
-
-		if ( NO_ERROR == ret )
-		{
-			if( NULL != mPreviewDataBufs )
-			{
-				ret = freePreviewDataBufs();
-			}
-		}
-
-		if ( NO_ERROR == ret )
-		{
-			bytes = ((bytes+4095)/4096)*4096;
-			mPreviewDataBufs = (int32_t *)mMemoryManager->allocateBuffer(0, 0, NULL, bytes, bufferCount);
-
-			LOGE("Size of Preview data buffer = %d", bytes);
-			if( NULL == mPreviewDataBufs )
-			{
-				LOGE("Couldn't allocate image buffers using memory manager");
-				ret = -NO_MEMORY;
-			}
-			else
-			{
-				bytes = size;
-			}
-		}
-
-		if ( NO_ERROR == ret )
-		{
-			mPreviewDataFd = mMemoryManager->getFd();
-			mPreviewDataLength = bytes;
-			mPreviewDataOffsets = mMemoryManager->getOffsets();
-		}
-		else
-		{
-			mPreviewDataFd = -1;
-			mPreviewDataLength = 0;
-			mPreviewDataOffsets = NULL;
-		}
-
-		LOG_FUNCTION_NAME;
-
-		return ret;
-	}
-
-	status_t CameraHal::freePreviewDataBufs()
-	{
-		status_t ret = NO_ERROR;
-
-		LOG_FUNCTION_NAME;
-
-		if ( NO_ERROR == ret )
-		{
-
-			if( NULL != mPreviewDataBufs )
-			{
-
-				///@todo Pluralise the name of this method to freeBuffers
-				ret = mMemoryManager->freeBuffer(mPreviewDataBufs);
-				mPreviewDataBufs = NULL;
-
-			}
-		}
-
-		LOG_FUNCTION_NAME_EXIT;
-
 		return ret;
 	}
 
@@ -1236,10 +862,10 @@ namespace android {
 			bytes = ((bytes+4095)/4096)*4096;
 			mImageBufs = (int32_t *)mMemoryManager->allocateBuffer(0, 0, previewFormat, bytes, bufferCount);
 
-			LOGE("Size of Image cap buffer = %d", bytes);
+			LOGINFO("Size of Image cap buffer = %d", bytes);
 			if( NULL == mImageBufs )
 			{
-				LOGE("Couldn't allocate image buffers using memory manager");
+				LOGINFO("Couldn't allocate image buffers using memory manager");
 				ret = -NO_MEMORY;
 			}
 			else
@@ -1286,24 +912,24 @@ namespace android {
 					buffer_handle_t buf;
 					ret = GrallocAlloc.alloc(width, height, HAL_PIXEL_FORMAT_NV12, CAMHAL_GRALLOC_USAGE, &buf, &stride);
 					if (ret != NO_ERROR){
-						LOGE("Couldn't allocate video buffers using Gralloc");
+						LOGINFO("Couldn't allocate video buffers using Gralloc");
 						ret = -NO_MEMORY;
 						for (int j=0; j< i; j++){
 							buf = (buffer_handle_t)bufsArr[j];
-							LOGE("Freeing Gralloc Buffer 0x%x", buf);
+							LOGINFO("Freeing Gralloc Buffer 0x%x", buf);
 							GrallocAlloc.free(buf);
 						}
 						delete [] bufsArr;
 						goto exit;
 					}
 					bufsArr[i] = buf;
-					LOGE("*** Gralloc Handle =0x%x ***", buf);
+					LOGINFO("*** Gralloc Handle =0x%x ***", buf);
 				}
 
 				mVideoBufs = (int32_t *)bufsArr;
 			}
 			else{
-				LOGE("Couldn't allocate video buffers ");
+				LOGINFO("Couldn't allocate video buffers ");
 				ret = -NO_MEMORY;
 			}
 		}
@@ -1347,7 +973,7 @@ exit:
 			{
 
 				///@todo Pluralise the name of this method to freeBuffers
-				ret = mMemoryManager->freeBuffer(mImageBufs);
+				ret = mMemoryManager->freeBuffers(mImageBufs);
 				mImageBufs = NULL;
 
 			}
@@ -1373,7 +999,7 @@ exit:
 		int count = atoi(mCameraProperties->get(CameraProperties::REQUIRED_PREVIEW_BUFS));
 		if(pBuf == NULL)
 		{
-			LOGE("NULL pointer passed to freeVideoBuffer");
+			LOGINFO("NULL pointer passed to freeVideoBuffer");
 			LOG_FUNCTION_NAME_EXIT;
 			return BAD_VALUE;
 		}
@@ -1382,7 +1008,7 @@ exit:
 
 		for(int i = 0; i < count; i++){
 			buffer_handle_t ptr = *pBuf++;
-			LOGE("Free Video Gralloc Handle 0x%x", ptr);
+			LOGINFO("Free Video Gralloc Handle 0x%x", ptr);
 			GrallocAlloc.free(ptr);
 		}
 
@@ -1412,7 +1038,7 @@ exit:
 		LOG_FUNCTION_NAME;
 
 		if ( mPreviewEnabled ){
-			LOGE("Preview already running");
+			LOGINFO("Preview already running");
 			LOG_FUNCTION_NAME_EXIT;
 			return ALREADY_EXISTS;
 		}
@@ -1424,26 +1050,22 @@ exit:
 		if ((mPreviewStartInProgress == false) && (mDisplayPaused == false)){
 			ret = mCameraAdapter->sendCommand(CameraAdapter::CAMERA_QUERY_RESOLUTION_PREVIEW,( int ) &frame);
 			if ( NO_ERROR != ret ){
-				LOGE("Error: CAMERA_QUERY_RESOLUTION_PREVIEW %d", ret);
+				LOGINFO("Error: CAMERA_QUERY_RESOLUTION_PREVIEW %d", ret);
 				return ret;
 			}
 
 			///Update the current preview width and height
 			mPreviewWidth = frame.mWidth;
 			mPreviewHeight = frame.mHeight;
-			//Update the padded width and height - required for VNF and VSTAB
-			mParameters.set(TICameraParameters::KEY_PADDED_WIDTH, mPreviewWidth);
-			mParameters.set(TICameraParameters::KEY_PADDED_HEIGHT, mPreviewHeight);
-
 		}
 
 		///If we don't have the preview callback enabled and display adapter,
 		if(!mSetPreviewWindowCalled || (mDisplayAdapter.get() == NULL)){
-			LOGE("Preview not started. Preview in progress flag set");
+			LOGINFO("Preview not started. Preview in progress flag set");
 			mPreviewStartInProgress = true;
 			ret = mCameraAdapter->sendCommand(CameraAdapter::CAMERA_SWITCH_TO_EXECUTING);
 			if ( NO_ERROR != ret ){
-				LOGE("Error: CAMERA_SWITCH_TO_EXECUTING %d", ret);
+				LOGINFO("Error: CAMERA_SWITCH_TO_EXECUTING %d", ret);
 				return ret;
 			}
 			return NO_ERROR;
@@ -1451,7 +1073,7 @@ exit:
 
 		if( (mDisplayAdapter.get() != NULL) && ( !mPreviewEnabled ) && ( mDisplayPaused ) )
 		{
-			LOGE("Preview is in paused state");
+			LOGINFO("Preview is in paused state");
 
 			mDisplayPaused = false;
 			mPreviewEnabled = true;
@@ -1461,7 +1083,7 @@ exit:
 
 				if ( NO_ERROR != ret )
 				{
-					LOGE("Display adapter resume failed %x", ret);
+					LOGINFO("Display adapter resume failed %x", ret);
 				}
 			}
 			//restart preview callbacks
@@ -1480,41 +1102,8 @@ exit:
 
 		if ( NO_ERROR != ret )
 		{
-			LOGE("Couldn't allocate buffers for Preview");
+			LOGINFO("Couldn't allocate buffers for Preview");
 			goto error;
-		}
-
-		if ( mMeasurementEnabled )
-		{
-
-			ret = mCameraAdapter->sendCommand(CameraAdapter::CAMERA_QUERY_BUFFER_SIZE_PREVIEW_DATA,
-					( int ) &frame,
-					required_buffer_count);
-			if ( NO_ERROR != ret )
-			{
-				return ret;
-			}
-
-			///Allocate the preview data buffers
-			ret = allocPreviewDataBufs(frame.mLength, required_buffer_count);
-			if ( NO_ERROR != ret ) {
-				LOGE("Couldn't allocate preview data buffers");
-				goto error;
-			}
-
-			if ( NO_ERROR == ret )
-			{
-				desc.mBuffers = mPreviewDataBufs;
-				desc.mOffsets = mPreviewDataOffsets;
-				desc.mFd = mPreviewDataFd;
-				desc.mLength = mPreviewDataLength;
-				desc.mCount = ( size_t ) required_buffer_count;
-				desc.mMaxQueueable = (size_t) required_buffer_count;
-
-				mCameraAdapter->sendCommand(CameraAdapter::CAMERA_USE_BUFFERS_PREVIEW_DATA,
-						( int ) &desc);
-			}
-
 		}
 
 		///Pass the buffers to Camera Adapter
@@ -1530,7 +1119,7 @@ exit:
 
 		if ( NO_ERROR != ret )
 		{
-			LOGE("Failed to register preview buffers: 0x%x", ret);
+			LOGINFO("Failed to register preview buffers: 0x%x", ret);
 			freePreviewBufs();
 			return ret;
 		}
@@ -1543,82 +1132,48 @@ exit:
 		if( ALREADY_EXISTS == ret )
 		{
 			//Already running, do nothing
-			LOGE("AppCallbackNotifier already running");
+			LOGINFO("AppCallbackNotifier already running");
 			ret = NO_ERROR;
 		}
 		else if ( NO_ERROR == ret ) {
-			LOGE("Started AppCallbackNotifier..");
+			LOGINFO("Started AppCallbackNotifier..");
 			mAppCallbackNotifier->setMeasurements(mMeasurementEnabled);
 		}
 		else
 		{
-			LOGE("Couldn't start AppCallbackNotifier");
+			LOGINFO("Couldn't start AppCallbackNotifier");
 			goto error;
 		}
 
 		///Enable the display adapter if present, actual overlay enable happens when we post the buffer
 		if(mDisplayAdapter.get() != NULL)
 		{
-			LOGE("Enabling display");
+			LOGINFO("Enabling display");
 			bool isS3d = false;
 			DisplayAdapter::S3DParameters s3dParams;
 			int width, height;
 			mParameters.getPreviewSize(&width, &height);
-#if 0 //TODO: s3d is not part of bringup...will reenable
-			if ( (valstr = mParameters.get(TICameraParameters::KEY_S3D_SUPPORTED)) != NULL) {
-				isS3d = (strcmp(valstr, "true") == 0);
-			}
-			if ( (valstr = mParameters.get(TICameraParameters::KEY_S3D2D_PREVIEW)) != NULL) {
-				if (strcmp(valstr, "off") == 0)
-				{
-					LOGE("STEREO 3D->2D PREVIEW MODE IS OFF");
-					//TODO: obtain the frame packing configuration from camera or user settings
-					//once side by side configuration is supported
-					s3dParams.mode = OVERLAY_S3D_MODE_ON;
-					s3dParams.framePacking = OVERLAY_S3D_FORMAT_OVERUNDER;
-					s3dParams.order = OVERLAY_S3D_ORDER_LF;
-					s3dParams.subSampling = OVERLAY_S3D_SS_NONE;
-				}
-				else
-				{
-					LOGE("STEREO 3D->2D PREVIEW MODE IS ON");
-					s3dParams.mode = OVERLAY_S3D_MODE_OFF;
-					s3dParams.framePacking = OVERLAY_S3D_FORMAT_OVERUNDER;
-					s3dParams.order = OVERLAY_S3D_ORDER_LF;
-					s3dParams.subSampling = OVERLAY_S3D_SS_NONE;
-				}
-			}
-#endif //if 0
-
-#if PPM_INSTRUMENTATION || PPM_INSTRUMENTATION_ABS
-
-			ret = mDisplayAdapter->enableDisplay(width, height, &mStartPreview, isS3d ? &s3dParams : NULL);
-
-#else
 
 			ret = mDisplayAdapter->enableDisplay(width, height, NULL, isS3d ? &s3dParams : NULL);
-
-#endif
-
 			if ( ret != NO_ERROR )
 			{
-				LOGE("Couldn't enable display");
+				LOGINFO("Couldn't enable display");
 				goto error;
 			}
 
 		}
 
 		///Send START_PREVIEW command to adapter
-		LOGE("Starting CameraAdapter preview mode");
+		LOGINFO("Starting CameraAdapter preview mode");
 
 		ret = mCameraAdapter->sendCommand(CameraAdapter::CAMERA_START_PREVIEW);
 
 		if(ret!=NO_ERROR)
 		{
-			LOGE("Couldn't start preview w/ CameraAdapter");
+			LOGINFO("Couldn't start preview w/ CameraAdapter");
 			goto error;
 		}
-		LOGE("Started preview");
+		LOGINFO("Started preview");
 
 		mPreviewEnabled = true;
 		mPreviewStartInProgress = false;
@@ -1626,7 +1181,7 @@ exit:
 
 error:
 
-		LOGE("Performing cleanup after error");
+		LOGINFO("Performing cleanup after error");
 
 		//Do all the cleanup
 		freePreviewBufs();
@@ -1668,13 +1223,13 @@ error:
 			if(mDisplayAdapter.get() != NULL)
 			{
 				///NULL window passed, destroy the display adapter if present
-				LOGE("NULL window passed, destroying display adapter");
+				LOGINFO("NULL window passed, destroying display adapter");
 				mDisplayAdapter.clear();
 				///@remarks If there was a window previously existing, we usually expect another valid window to be passed by the client
 				///@remarks so, we will wait until it passes a valid window to begin the preview again
 				mSetPreviewWindowCalled = false;
 			}
-			LOGE("NULL ANativeWindow passed to setPreviewWindow");
+			LOGINFO("NULL ANativeWindow passed to setPreviewWindow");
 			return NO_ERROR;
 		}else if(mDisplayAdapter.get() == NULL)
 		{
@@ -1687,13 +1242,13 @@ error:
 				if(ret!=NO_ERROR)
 				{
 					mDisplayAdapter.clear();
-					LOGE("DisplayAdapter initialize failed");
+					LOGINFO("DisplayAdapter initialize failed");
 					LOG_FUNCTION_NAME_EXIT;
 					return ret;
 				}
 				else
 				{
-					LOGE("Couldn't create DisplayAdapter");
+					LOGINFO("Couldn't create DisplayAdapter");
 					LOG_FUNCTION_NAME_EXIT;
 					return NO_MEMORY;
 				}
@@ -1712,12 +1267,12 @@ error:
 			ret  = mDisplayAdapter->setPreviewWindow(window);
 			if(ret!=NO_ERROR)
 			{
-				LOGE("DisplayAdapter setPreviewWindow returned error %d", ret);
+				LOGINFO("DisplayAdapter setPreviewWindow returned error %d", ret);
 			}
 
 			if(mPreviewStartInProgress)
 			{
-				LOGE("setPreviewWindow called when preview running");
+				LOGINFO("setPreviewWindow called when preview running");
 				// Start the preview since the window is now available
 				ret = startPreview();
 			}
@@ -1765,12 +1320,6 @@ error:
 		}
 
 		forceStopPreview();
-
-		// Reset Capture-Mode to default, so that when we switch from VideoRecording
-		// to ImageCapture, CAPTURE_MODE is not left to VIDEO_MODE.
-		LOGE("Resetting Capture-Mode to default");
-		mParameters.set(TICameraParameters::KEY_CAP_MODE, "");
-
 		LOG_FUNCTION_NAME_EXIT;
 	}
 
@@ -1786,7 +1335,10 @@ error:
 	{
 		LOG_FUNCTION_NAME;
 
-		return (mPreviewEnabled || mPreviewStartInProgress);
+		bool ret = mPreviewEnabled || mPreviewStartInProgress;
+
+		LOG_FUNCTION_NAME_EXIT;
+		return ret;
 	}
 
 	/**
@@ -1810,13 +1362,6 @@ error:
 
 		LOG_FUNCTION_NAME;
 
-
-#if PPM_INSTRUMENTATION || PPM_INSTRUMENTATION_ABS
-
-		gettimeofday(&mStartPreview, NULL);
-
-#endif
-
 		if(!previewEnabled())
 		{
 			return NO_INIT;
@@ -1824,8 +1369,6 @@ error:
 
 		// set internal recording hint in case camera adapter needs to make some
 		// decisions....(will only be sent to camera adapter if camera restart is required)
-		mParameters.set(TICameraParameters::KEY_RECORDING_HINT, CameraParameters::TRUE);
-
 		// if application starts recording in continuous focus picture mode...
 		// then we need to force default capture mode (as opposed to video mode)
 		if ( ((valstr = mParameters.get(CameraParameters::KEY_FOCUS_MODE)) != NULL) &&
@@ -1848,17 +1391,11 @@ error:
 		{
 			int count = atoi(mCameraProperties->get(CameraProperties::REQUIRED_PREVIEW_BUFS));
 			mParameters.getPreviewSize(&w, &h);
-			LOGE("%s Video Width=%d Height=%d", __FUNCTION__, mVideoWidth, mVideoHeight);
+			LOGINFO("%s Video Width=%d Height=%d", __FUNCTION__, mVideoWidth, mVideoHeight);
 
 			if ((w != mVideoWidth) && (h != mVideoHeight))
 			{
 				ret = allocVideoBufs(mVideoWidth, mVideoHeight, count);
-				if ( NO_ERROR != ret )
-				{
-					LOGE("allocImageBufs returned error 0x%x", ret);
-					mParameters.remove(TICameraParameters::KEY_RECORDING_HINT);
-					return ret;
-				}
 
 				mAppCallbackNotifier->useVideoBuffers(true);
 				mAppCallbackNotifier->setVideoRes(mVideoWidth, mVideoHeight);
@@ -1912,63 +1449,6 @@ error:
 		status_t ret = NO_ERROR;
 
 		LOG_FUNCTION_NAME;
-
-		// Set CAPTURE_MODE to VIDEO_MODE, if not set already and Restart Preview
-		valstr = mParameters.get(TICameraParameters::KEY_CAP_MODE);
-		if ( (valstr == NULL) ||
-				( (valstr != NULL) && (strcmp(valstr, (const char *) TICameraParameters::VIDEO_MODE) != 0) ) )
-		{
-			LOGE("Set CAPTURE_MODE to VIDEO_MODE");
-			mParameters.set(TICameraParameters::KEY_CAP_MODE, (const char *) TICameraParameters::VIDEO_MODE);
-			restartPreviewRequired = true;
-		}
-
-		// Check if CAPTURE_MODE is VIDEO_MODE, since VSTAB & VNF work only in VIDEO_MODE.
-		valstr = mParameters.get(TICameraParameters::KEY_CAP_MODE);
-		if (strcmp(valstr, (const char *) TICameraParameters::VIDEO_MODE) == 0) {
-			// set VSTAB. restart is required if vstab value has changed
-			if (params.get(CameraParameters::KEY_VIDEO_STABILIZATION) != NULL) {
-				// make sure we support vstab
-				if (strcmp(mCameraProperties->get(CameraProperties::VSTAB_SUPPORTED),
-							CameraParameters::TRUE) == 0) {
-					valstr = mParameters.get(CameraParameters::KEY_VIDEO_STABILIZATION);
-					// vstab value has changed
-					if ((valstr != NULL) &&
-							strcmp(valstr, params.get(CameraParameters::KEY_VIDEO_STABILIZATION)) != 0) {
-						restartPreviewRequired = true;
-					}
-					mParameters.set(CameraParameters::KEY_VIDEO_STABILIZATION,
-							params.get(CameraParameters::KEY_VIDEO_STABILIZATION));
-				}
-			} else if (mParameters.get(CameraParameters::KEY_VIDEO_STABILIZATION)) {
-				// vstab was configured but now unset
-				restartPreviewRequired = true;
-				mParameters.remove(CameraParameters::KEY_VIDEO_STABILIZATION);
-			}
-
-			// Set VNF
-			if (params.get(TICameraParameters::KEY_VNF) == NULL) {
-				LOGE("Enable VNF");
-				mParameters.set(TICameraParameters::KEY_VNF, "1");
-				restartPreviewRequired = true;
-			} else {
-				valstr = mParameters.get(TICameraParameters::KEY_VNF);
-				if (valstr && strcmp(valstr, params.get(TICameraParameters::KEY_VNF)) != 0) {
-					restartPreviewRequired = true;
-				}
-				mParameters.set(TICameraParameters::KEY_VNF, params.get(TICameraParameters::KEY_VNF));
-			}
-
-			// For VSTAB alone for 1080p resolution, padded width goes > 2048, which cannot be rendered by GPU.
-			// In such case, there is support in Ducati for combination of VSTAB & VNF requiring padded width < 2048.
-			// So we are forcefully enabling VNF, if VSTAB is enabled for 1080p resolution.
-			valstr = mParameters.get(CameraParameters::KEY_VIDEO_STABILIZATION);
-			if (valstr && (strcmp(valstr, CameraParameters::TRUE) == 0) && (mPreviewWidth == 1920)) {
-				LOGE("Force Enable VNF for 1080p");
-				mParameters.set(TICameraParameters::KEY_VNF, "1");
-				restartPreviewRequired = true;
-			}
-		}
 		LOG_FUNCTION_NAME_EXIT;
 
 		return restartPreviewRequired;
@@ -1996,14 +1476,6 @@ error:
 			return false;
 		}
 
-		// Set CAPTURE_MODE to VIDEO_MODE, if not set already and Restart Preview
-		valstr = mParameters.get(TICameraParameters::KEY_CAP_MODE);
-		if ((valstr != NULL) && (strcmp(valstr, TICameraParameters::VIDEO_MODE) == 0)) {
-			LOGE("Reset Capture-Mode to default");
-			mParameters.set(TICameraParameters::KEY_CAP_MODE, "");
-			restartPreviewRequired = true;
-		}
-
 		LOG_FUNCTION_NAME_EXIT;
 
 		return restartPreviewRequired;
@@ -2026,27 +1498,8 @@ error:
 
 		LOG_FUNCTION_NAME;
 
-		// Retain CAPTURE_MODE before calling stopPreview(), since it is reset in stopPreview().
-		tmpvalstr[0] = 0;
-		valstr = mParameters.get(TICameraParameters::KEY_CAP_MODE);
-		if(valstr != NULL)
-		{
-			if(sizeof(tmpvalstr) < (strlen(valstr)+1))
-			{
-				return -EINVAL;
-			}
-
-			strncpy(tmpvalstr, valstr, sizeof(tmpvalstr));
-			tmpvalstr[sizeof(tmpvalstr)-1] = 0;
-		}
-
 		forceStopPreview();
-
-		{
-			Mutex::Autolock lock(mLock);
-			mParameters.set(TICameraParameters::KEY_CAP_MODE, tmpvalstr);
-			mCameraAdapter->setParameters(mParameters);
-		}
+		mCameraAdapter->setParameters(mParameters);
 
 		ret = startPreview();
 
@@ -2089,15 +1542,11 @@ error:
 		if ( mAppCallbackNotifier->getUesVideoBuffers() ){
 			freeVideoBufs(mVideoBufs);
 			if (mVideoBufs){
-				LOGE(" FREEING mVideoBufs 0x%x", mVideoBufs);
+				LOGINFO(" FREEING mVideoBufs 0x%x", mVideoBufs);
 				delete [] mVideoBufs;
 			}
 			mVideoBufs = NULL;
 		}
-
-		// reset internal recording hint in case camera adapter needs to make some
-		// decisions....(will only be sent to camera adapter if camera restart is required)
-		mParameters.remove(TICameraParameters::KEY_RECORDING_HINT);
 
 		LOG_FUNCTION_NAME_EXIT;
 	}
@@ -2131,7 +1580,7 @@ error:
 	{
 		LOG_FUNCTION_NAME;
 
-		//LOGE(" 0x%x", mem->pointer());
+		//LOGINFO(" 0x%x", mem->pointer());
 
 		if ( ( mRecordingEnabled ) && mem != NULL)
 		{
@@ -2160,13 +1609,6 @@ error:
 	{
 		status_t ret = NO_ERROR;
 
-#if PPM_INSTRUMENTATION || PPM_INSTRUMENTATION_ABS
-
-		gettimeofday(&mStartFocus, NULL);
-
-#endif
-
-
 		LOG_FUNCTION_NAME;
 
 		{
@@ -2177,18 +1619,7 @@ error:
 
 		if ( NULL != mCameraAdapter )
 		{
-
-#if PPM_INSTRUMENTATION || PPM_INSTRUMENTATION_ABS
-
-			//pass the autoFocus timestamp along with the command to camera adapter
-			ret = mCameraAdapter->sendCommand(CameraAdapter::CAMERA_PERFORM_AUTOFOCUS, ( int ) &mStartFocus);
-
-#else
-
 			ret = mCameraAdapter->sendCommand(CameraAdapter::CAMERA_PERFORM_AUTOFOCUS);
-
-#endif
-
 		}
 		else
 		{
@@ -2223,7 +1654,6 @@ error:
 
 		if( NULL != mCameraAdapter )
 		{
-			adapterParams.set(TICameraParameters::KEY_AUTO_FOCUS_LOCK, CameraParameters::FALSE);
 			mCameraAdapter->setParameters(adapterParams);
 			mCameraAdapter->sendCommand(CameraAdapter::CAMERA_CANCEL_AUTOFOCUS);
 		}
@@ -2247,7 +1677,7 @@ error:
 		mEventProvider = new EventProvider(eventNotifier, this, eventCallbackRelay);
 		if ( NULL == mEventProvider )
 		{
-			LOGE("Error in creating EventProvider");
+			LOGINFO("Error in creating EventProvider");
 		}
 		else
 		{
@@ -2299,13 +1729,6 @@ error:
 		status_t ret = NO_ERROR;
 		CameraFrame frame;
 		CameraAdapter::BuffersDescriptor desc;
-
-#if PPM_INSTRUMENTATION || PPM_INSTRUMENTATION_ABS
-
-		gettimeofday(&mStartCapture, NULL);
-
-#endif
-
 		LOG_FUNCTION_NAME;
 
 		if(!previewEnabled() && !mDisplayPaused)
@@ -2332,7 +1755,7 @@ error:
 
 			if ( NO_ERROR != ret )
 			{
-				LOGE("CAMERA_QUERY_BUFFER_SIZE_IMAGE_CAPTURE returned error 0x%x", ret);
+				LOGINFO("CAMERA_QUERY_BUFFER_SIZE_IMAGE_CAPTURE returned error 0x%x", ret);
 			}
 		}
 
@@ -2356,7 +1779,7 @@ error:
 					( mBracketRangeNegative + 1 ));
 			if ( NO_ERROR != ret )
 			{
-				LOGE("allocImageBufs returned error 0x%x", ret);
+				LOGINFO("allocImageBufs returned error 0x%x", ret);
 			}
 		}
 
@@ -2375,18 +1798,7 @@ error:
 
 			if ( NO_ERROR == ret )
 			{
-
-#if PPM_INSTRUMENTATION || PPM_INSTRUMENTATION_ABS
-
-				//pass capture timestamp along with the camera adapter command
-				ret = mCameraAdapter->sendCommand(CameraAdapter::CAMERA_START_BRACKET_CAPTURE,  ( mBracketRangePositive + 1 ),  (int) &mStartCapture);
-
-#else
-
 				ret = mCameraAdapter->sendCommand(CameraAdapter::CAMERA_START_BRACKET_CAPTURE, ( mBracketRangePositive + 1 ));
-
-#endif
-
 			}
 		}
 
@@ -2432,18 +1844,12 @@ error:
 
 		Mutex::Autolock lock(mLock);
 
-#if PPM_INSTRUMENTATION || PPM_INSTRUMENTATION_ABS
-
-		gettimeofday(&mStartCapture, NULL);
-
-#endif
-
 		LOG_FUNCTION_NAME;
 
 		if(!previewEnabled() && !mDisplayPaused)
 		{
 			LOG_FUNCTION_NAME_EXIT;
-			LOGE("Preview not started...");
+			LOGINFO("Preview not started...");
 			return NO_INIT;
 		}
 
@@ -2452,43 +1858,17 @@ error:
 					mCameraAdapter->getNextState() != CameraAdapter::PREVIEW_STATE) ||
 				(mCameraAdapter->getState() == CameraAdapter::VIDEO_CAPTURE_STATE &&
 				 mCameraAdapter->getNextState() != CameraAdapter::VIDEO_STATE) ) {
-			LOGE("Already capturing an image...");
+			LOGINFO("Already capturing an image...");
 			return NO_INIT;
 		}
 
-		// we only support video snapshot if we are in video mode (recording hint is set)
-		valstr = mParameters.get(TICameraParameters::KEY_CAP_MODE);
-		if ( (mCameraAdapter->getState() == CameraAdapter::VIDEO_STATE) &&
-				(valstr && strcmp(valstr, TICameraParameters::VIDEO_MODE)) ) {
-			LOGE("Trying to capture while recording without recording hint set...");
+		if (mCameraAdapter->getState() == CameraAdapter::VIDEO_STATE) {
+			LOGINFO("Trying to capture while recording without recording hint set...");
 			return INVALID_OPERATION;
 		}
 
 		if ( !mBracketingRunning )
 		{
-
-			if ( NO_ERROR == ret )
-			{
-				burst = mParameters.getInt(TICameraParameters::KEY_BURST);
-			}
-
-			//Allocate all buffers only in burst capture case
-			if ( burst > 1 )
-			{
-				bufferCount = CameraHal::NO_BUFFERS_IMAGE_CAPTURE;
-				if ( NULL != mAppCallbackNotifier.get() )
-				{
-					mAppCallbackNotifier->setBurst(true);
-				}
-			}
-			else
-			{
-				if ( NULL != mAppCallbackNotifier.get() )
-				{
-					mAppCallbackNotifier->setBurst(false);
-				}
-			}
-
 			// pause preview during normal image capture
 			// do not pause preview if recording (video state)
 			if (NO_ERROR == ret &&
@@ -2503,10 +1883,6 @@ error:
 						mAppCallbackNotifier->disableMsgType (CAMERA_MSG_PREVIEW_FRAME);
 					}
 				}
-
-#if PPM_INSTRUMENTATION || PPM_INSTRUMENTATION_ABS
-				mDisplayAdapter->setSnapshotTimeRef(&mStartCapture);
-#endif
 			}
 
 			// if we taking video snapshot...
@@ -2527,7 +1903,7 @@ error:
 
 				if ( NO_ERROR != ret )
 				{
-					LOGE("CAMERA_QUERY_BUFFER_SIZE_IMAGE_CAPTURE returned error 0x%x", ret);
+					LOGINFO("CAMERA_QUERY_BUFFER_SIZE_IMAGE_CAPTURE returned error 0x%x", ret);
 				}
 			}
 
@@ -2543,7 +1919,7 @@ error:
 						bufferCount);
 				if ( NO_ERROR != ret )
 				{
-					LOGE("allocImageBufs returned error 0x%x", ret);
+					LOGINFO("allocImageBufs returned error 0x%x", ret);
 				}
 			}
 
@@ -2563,18 +1939,7 @@ error:
 
 		if ( ( NO_ERROR == ret ) && ( NULL != mCameraAdapter ) )
 		{
-
-#if PPM_INSTRUMENTATION || PPM_INSTRUMENTATION_ABS
-
-			//pass capture timestamp along with the camera adapter command
-			ret = mCameraAdapter->sendCommand(CameraAdapter::CAMERA_START_IMAGE_CAPTURE,  (int) &mStartCapture);
-
-#else
-
 			ret = mCameraAdapter->sendCommand(CameraAdapter::CAMERA_START_IMAGE_CAPTURE);
-
-#endif
-
 		}
 
 		return ret;
@@ -2633,11 +1998,6 @@ error:
 				resetPreviewRes(&mParams, mVideoWidth, mVideoHeight);
 			}
 		}
-
-		// do not send internal parameters to upper layers
-		mParams.remove(TICameraParameters::KEY_RECORDING_HINT);
-		mParams.remove(TICameraParameters::KEY_AUTO_FOCUS_LOCK);
-
 		params_str8 = mParams.flatten();
 
 		// camera service frees this string...
@@ -2673,13 +2033,13 @@ error:
 
 		if ( ( NO_ERROR == ret ) && ( NULL == mCameraAdapter ) )
 		{
-			LOGE("No CameraAdapter instance");
+			LOGINFO("No CameraAdapter instance");
 			ret = -EINVAL;
 		}
 
 		if ( ( NO_ERROR == ret ) && ( !previewEnabled() ))
 		{
-			LOGE("Preview is not running");
+			LOGINFO("Preview is not running");
 			ret = -EINVAL;
 		}
 
@@ -2775,10 +2135,8 @@ error:
 		mPreviewEnabled = false;
 		mPreviewBufs = NULL;
 		mImageBufs = NULL;
-		mBufProvider = NULL;
 		mPreviewStartInProgress = false;
 		mVideoBufs = NULL;
-		mVideoBufProvider = NULL;
 		mRecordingEnabled = false;
 		mDisplayPaused = false;
 		mSetPreviewWindowCalled = false;
@@ -2819,15 +2177,6 @@ error:
 //		mSensorListener = NULL;
 		mVideoWidth = 0;
 		mVideoHeight = 0;
-
-#if PPM_INSTRUMENTATION || PPM_INSTRUMENTATION_ABS
-
-		//Initialize the CameraHAL constructor timestamp, which is used in the
-		// PPM() method as time reference if the user does not supply one.
-		gettimeofday(&ppm_start, NULL);
-
-#endif
-
 		mCameraIndex = cameraId;
 
 		LOG_FUNCTION_NAME_EXIT;
@@ -2914,12 +2263,12 @@ error:
 			sensor_index = atoi(mCameraProperties->get(CameraProperties::CAMERA_SENSOR_INDEX));
 		}
 
-		LOGE("Sensor index %d", sensor_index);
+		LOGINFO("Sensor index %d", sensor_index);
 
 		mCameraAdapter = CameraAdapter_Factory(sensor_index);
 		if ( ( NULL == mCameraAdapter ) || (mCameraAdapter->initialize(properties)!=NO_ERROR))
 		{
-			LOGE("Unable to create or initialize CameraAdapter");
+			LOGINFO("Unable to create or initialize CameraAdapter");
 			mCameraAdapter = NULL;
 			goto fail_loop;
 		}
@@ -2934,7 +2283,7 @@ error:
 			mAppCallbackNotifier = new AppCallbackNotifier();
 			if( ( NULL == mAppCallbackNotifier.get() ) || ( mAppCallbackNotifier->initialize() != NO_ERROR))
 			{
-				LOGE("Unable to create or initialize AppCallbackNotifier");
+				LOGINFO("Unable to create or initialize AppCallbackNotifier");
 				goto fail_loop;
 			}
 		}
@@ -2945,7 +2294,7 @@ error:
 			mMemoryManager = new MemoryManager();
 			if( ( NULL == mMemoryManager.get() ) || ( mMemoryManager->initialize() != NO_ERROR))
 			{
-				LOGE("Unable to create or initialize MemoryManager");
+				LOGINFO("Unable to create or initialize MemoryManager");
 				goto fail_loop;
 			}
 		}
@@ -2969,11 +2318,11 @@ error:
 		///Start the callback notifier
 		if(mAppCallbackNotifier->start() != NO_ERROR)
 		{
-			LOGE("Couldn't start AppCallbackNotifier");
+			LOGINFO("Couldn't start AppCallbackNotifier");
 			goto fail_loop;
 		}
 
-		LOGE("Started AppCallbackNotifier..");
+		LOGINFO("Started AppCallbackNotifier..");
 		mAppCallbackNotifier->setMeasurements(mMeasurementEnabled);
 
 		///Initialize default parameters
@@ -2982,7 +2331,7 @@ error:
 
 		if ( setParameters(mParameters) != NO_ERROR )
 		{
-			LOGE("Failed to set default parameters?!");
+			LOGINFO("Failed to set default parameters?!");
 		}
 
 		// register for sensor events
@@ -2994,7 +2343,7 @@ error:
 				mSensorListener->setCallbacks(orientation_cb, this);
 				mSensorListener->enableSensor(SensorListener::SENSOR_ORIENTATION);
 			} else {
-				LOGE("Error initializing SensorListener. not fatal, continuing");
+				LOGINFO("Error initializing SensorListener. not fatal, continuing");
 				mSensorListener.clear();
 				mSensorListener = NULL;
 			}
@@ -3026,7 +2375,7 @@ fail_loop:
 
 		if ( NULL == supportedResolutions )
 		{
-			LOGE("Invalid supported resolutions string");
+			LOGINFO("Invalid supported resolutions string");
 			ret = false;
 			goto exit;
 		}
@@ -3034,7 +2383,7 @@ fail_loop:
 		status = snprintf(tmpBuffer, PARAM_BUFFER, "%dx%d", width, height);
 		if ( 0 > status )
 		{
-			LOGE("Error encountered while generating validation string");
+			LOGINFO("Error encountered while generating validation string");
 			ret = false;
 			goto exit;
 		}
@@ -3065,14 +2414,14 @@ exit:
 
 		if ( NULL == supportedParams )
 		{
-			LOGE("Invalid supported parameters string");
+			LOGINFO("Invalid supported parameters string");
 			ret = false;
 			goto exit;
 		}
 
 		if ( NULL == param )
 		{
-			LOGE("Invalid parameter string");
+			LOGINFO("Invalid parameter string");
 			ret = false;
 			goto exit;
 		}
@@ -3105,7 +2454,7 @@ exit:
 
 		if ( NULL == supportedParams )
 		{
-			LOGE("Invalid supported parameters string");
+			LOGINFO("Invalid supported parameters string");
 			ret = false;
 			goto exit;
 		}
@@ -3113,7 +2462,7 @@ exit:
 		status = snprintf(tmpBuffer, PARAM_BUFFER, "%d", param);
 		if ( 0 > status )
 		{
-			LOGE("Error encountered while generating validation string");
+			LOGINFO("Error encountered while generating validation string");
 			ret = false;
 			goto exit;
 		}
@@ -3176,7 +2525,7 @@ exit:
 				}
 				else
 				{
-					LOGE("Invalid input resolution %s", resStr);
+					LOGINFO("Invalid input resolution %s", resStr);
 					ret = -EINVAL;
 				}
 			}
@@ -3191,7 +2540,7 @@ exit:
 				}
 				else
 				{
-					LOGE("Invalid input resolution %s", resStr);
+					LOGINFO("Invalid input resolution %s", resStr);
 					ret = -EINVAL;
 				}
 			}
@@ -3373,7 +2722,6 @@ exit:
 		}
 
 		freePreviewBufs();
-		freePreviewDataBufs();
 
 		mPreviewEnabled = false;
 		mDisplayPaused = false;
@@ -3443,7 +2791,7 @@ exit:
 			{
 				if (framerate == fpsrangeArray[i])
 				{
-					LOGE("SETTING FPS RANGE min = %d max = %d \n", fpsrangeArray[0], fpsrangeArray[1]);
+					LOGINFO("SETTING FPS RANGE min = %d max = %d \n", fpsrangeArray[0], fpsrangeArray[1]);
 					*min_fps = fpsrangeArray[0]*CameraHal::VFR_SCALE;
 					*max_fps = fpsrangeArray[1]*CameraHal::VFR_SCALE;
 					break;

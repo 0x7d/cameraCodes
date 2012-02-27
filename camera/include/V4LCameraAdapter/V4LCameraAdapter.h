@@ -47,8 +47,6 @@ struct VideoInfo {
 
 /**
   * Class which completely abstracts the camera hardware interaction from camera hal
-  * TODO: Need to list down here, all the message types that will be supported by this class
-                Need to implement BufferProvider interface to use AllocateBuffer of OMX if needed
   */
 class V4LCameraAdapter : public BaseCameraAdapter
 {
@@ -78,7 +76,7 @@ public:
     virtual status_t takePicture();
 
     // API
-    virtual status_t UseBuffersPreview(void* bufArr, int num);
+    virtual status_t useBuffersPreview(void* bufArr, int num);
 
     //API to flush the buffers for preview
     status_t flushBuffers();
@@ -116,8 +114,7 @@ private:
     //Used for calculation of the average frame rate during preview
     status_t recalculateFPS();
 
-    char * GetFrame(int &index);
-
+    char* getFrame(int &index);
     int previewThread();
 
 public:

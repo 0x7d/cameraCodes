@@ -46,14 +46,6 @@ namespace android {
 		mPreviewDataBuffersLength = 0;
 
 		mAdapterState = INTIALIZED_STATE;
-
-#if PPM_INSTRUMENTATION || PPM_INSTRUMENTATION_ABS
-		mStartFocus.tv_sec = 0;
-		mStartFocus.tv_usec = 0;
-		mStartCapture.tv_sec = 0;
-		mStartCapture.tv_usec = 0;
-#endif
-
 	}
 
 	BaseCameraAdapter::~BaseCameraAdapter()
@@ -110,7 +102,7 @@ namespace android {
 
 		if ( NULL == errorNotifier )
 		{
-			LOGE("Invalid Error Notifier reference");
+			LOGINFO("Invalid Error Notifier reference");
 			ret = -EINVAL;
 		}
 
@@ -129,7 +121,7 @@ namespace android {
 		Mutex::Autolock lock(mSubscriberLock);
 
 		LOG_FUNCTION_NAME;
-		LOGE("enableMsgType %d\n", msgs);
+		LOGINFO("enableMsgType %d\n", msgs);
 
 		if ( CameraFrame::PREVIEW_FRAME_SYNC == msgs )
 		{
@@ -160,7 +152,7 @@ namespace android {
 		}
 		else
 		{
-			LOGE("Message type subscription no supported yet!");
+			LOGINFO("Message type subscription no supported yet!");
 		}
 
 		LOG_FUNCTION_NAME_EXIT;
@@ -211,7 +203,7 @@ namespace android {
 		}
 		else
 		{
-			LOGE("Message type 0x%x subscription no supported yet!", msgs);
+			LOGINFO("Message type 0x%x subscription no supported yet!", msgs);
 		}
 
 		LOG_FUNCTION_NAME_EXIT;
@@ -230,7 +222,7 @@ namespace android {
 			frame->mYuv[1] = pBuf[1];
 			mFrameQueue.add(frameBuf, frame);
 
-			LOGE("Adding Frame=0x%x Y=0x%x UV=0x%x", frame->mBuffer, frame->mYuv[0], frame->mYuv[1]);
+			LOGINFO("Adding Frame=0x%x Y=0x%x UV=0x%x", frame->mBuffer, frame->mYuv[0], frame->mYuv[1]);
 		}
 	}
 
@@ -239,11 +231,11 @@ namespace android {
 		Mutex::Autolock lock(mSubscriberLock);
 
 		int size = mFrameQueue.size();
-		LOGE("Removing %d Frames = ", size);
+		LOGINFO("Removing %d Frames = ", size);
 		for (int i = 0; i < size; i++)
 		{
 			CameraFrame *frame = (CameraFrame *)mFrameQueue.valueAt(i);
-			LOGE("Free Frame=0x%x Y=0x%x UV=0x%x", frame->mBuffer, frame->mYuv[0], frame->mYuv[1]);
+			LOGINFO("Free Frame=0x%x Y=0x%x UV=0x%x", frame->mBuffer, frame->mYuv[0], frame->mYuv[1]);
 			delete frame;
 		}
 		mFrameQueue.clear();
@@ -259,7 +251,7 @@ namespace android {
 
 		if ( NULL == frameBuf )
 		{
-			LOGE("Invalid frameBuf");
+			LOGINFO("Invalid frameBuf");
 			return;
 		}
 
@@ -296,12 +288,12 @@ namespace android {
 			}
 			else
 			{
-				LOGE("Frame returned when ref count is already zero!!");
+				LOGINFO("Frame returned when ref count is already zero!!");
 				return;
 			}
 		}
 
-		LOGE("REFCOUNT 0x%x %d", frameBuf, refCount);
+		LOGINFO("REFCOUNT 0x%x %d", frameBuf, refCount);
 
 		if ( NO_ERROR == res )
 		{
@@ -311,8 +303,8 @@ namespace android {
 #ifdef DEBUG_LOG
 				if(mBuffersWithDucati.indexOfKey((int)frameBuf)>=0)
 				{
-					LOGE("Buffer already with Ducati!! 0x%x", frameBuf);
-					for(int i=0;i<mBuffersWithDucati.size();i++) LOGE("0x%x", mBuffersWithDucati.keyAt(i));
+					LOGINFO("Buffer already with Ducati!! 0x%x", frameBuf);
+					for(int i=0;i<mBuffersWithDucati.size();i++) LOGINFO("0x%x", mBuffersWithDucati.keyAt(i));
 				}
 				mBuffersWithDucati.add((int)frameBuf,1);
 #endif
@@ -333,12 +325,12 @@ namespace android {
 
 		switch ( operation ) {
 		case CameraAdapter::CAMERA_USE_BUFFERS_PREVIEW:
-			LOGE("Use buffers for preview");
+			LOGINFO("Use buffers for preview");
 			desc = ( BuffersDescriptor * ) value1;
 
 			if ( NULL == desc )
 			{
-				LOGE("Invalid preview buffers!");
+				LOGINFO("Invalid preview buffers!");
 				return -EINVAL;
 			}
 
@@ -386,12 +378,12 @@ namespace android {
 			break;
 
 		case CameraAdapter::CAMERA_USE_BUFFERS_PREVIEW_DATA:
-			LOGE("Use buffers for preview data");
+			LOGINFO("Use buffers for preview data");
 			desc = ( BuffersDescriptor * ) value1;
 
 			if ( NULL == desc )
 			{
-				LOGE("Invalid preview data buffers!");
+				LOGINFO("Invalid preview data buffers!");
 				return -EINVAL;
 			}
 
@@ -439,12 +431,12 @@ namespace android {
 			break;
 
 		case CameraAdapter::CAMERA_USE_BUFFERS_IMAGE_CAPTURE:
-			LOGE("Use buffers for image capture");
+			LOGINFO("Use buffers for image capture");
 			desc = ( BuffersDescriptor * ) value1;
 
 			if ( NULL == desc )
 			{
-				LOGE("Invalid capture buffers!");
+				LOGINFO("Invalid capture buffers!");
 				return -EINVAL;
 			}
 
@@ -546,7 +538,7 @@ namespace android {
 		case CameraAdapter::CAMERA_START_PREVIEW:
 			{
 
-				LOGE("Start Preview");
+				LOGINFO("Start Preview");
 
 				if ( ret == NO_ERROR )
 				{
@@ -574,7 +566,7 @@ namespace android {
 		case CameraAdapter::CAMERA_STOP_PREVIEW:
 			{
 
-				LOGE("Stop Preview");
+				LOGINFO("Stop Preview");
 
 				if ( ret == NO_ERROR )
 				{
@@ -602,7 +594,7 @@ namespace android {
 		case CameraAdapter::CAMERA_START_VIDEO:
 			{
 
-				LOGE("Start video recording");
+				LOGINFO("Start video recording");
 
 				if ( ret == NO_ERROR )
 				{
@@ -630,7 +622,7 @@ namespace android {
 		case CameraAdapter::CAMERA_STOP_VIDEO:
 			{
 
-				LOGE("Stop video recording");
+				LOGINFO("Stop video recording");
 
 				if ( ret == NO_ERROR )
 				{
@@ -683,17 +675,6 @@ namespace android {
 
 		case CameraAdapter::CAMERA_START_IMAGE_CAPTURE:
 			{
-
-#if PPM_INSTRUMENTATION || PPM_INSTRUMENTATION_ABS
-
-				refTimestamp = ( struct timeval * ) value1;
-				if ( NULL != refTimestamp )
-				{
-					memcpy( &mStartCapture, refTimestamp, sizeof( struct timeval ));
-				}
-
-#endif
-
 				if ( ret == NO_ERROR )
 				{
 					ret = setState(operation);
@@ -745,17 +726,6 @@ namespace android {
 
 		case CameraAdapter::CAMERA_START_BRACKET_CAPTURE:
 			{
-
-#if PPM_INSTRUMENTATION || PPM_INSTRUMENTATION_ABS
-
-				refTimestamp = ( struct timeval * ) value2;
-				if ( NULL != refTimestamp )
-				{
-					memcpy( &mStartCapture, refTimestamp, sizeof( struct timeval ));
-				}
-
-#endif
-
 				if ( ret == NO_ERROR )
 				{
 					ret = setState(operation);
@@ -806,17 +776,6 @@ namespace android {
 			}
 
 		case CameraAdapter::CAMERA_PERFORM_AUTOFOCUS:
-
-#if PPM_INSTRUMENTATION || PPM_INSTRUMENTATION_ABS
-
-			refTimestamp = ( struct timeval * ) value1;
-			if ( NULL != refTimestamp )
-			{
-				memcpy( &mStartFocus, refTimestamp, sizeof( struct timeval ));
-			}
-
-#endif
-
 			if ( ret == NO_ERROR )
 			{
 				ret = setState(operation);
@@ -974,7 +933,7 @@ namespace android {
 			break;
 
 		default:
-			LOGE("Command 0x%x unsupported!", operation);
+			LOGINFO("Command 0x%x unsupported!", operation);
 			break;
 		};
 
@@ -991,16 +950,9 @@ namespace android {
 		LOG_FUNCTION_NAME;
 
 		if ( mFocusSubscribers.size() == 0 ) {
-			LOGE("No Focus Subscribers!");
+			LOGINFO("No Focus Subscribers!");
 			return NO_INIT;
 		}
-
-#if PPM_INSTRUMENTATION || PPM_INSTRUMENTATION_ABS
-
-		//dump the AF latency
-		CameraHal::PPM("Focus finished in: ", &mStartFocus);
-
-#endif
 
 		focusEvent.mEventData = new CameraHalEvent::CameraHalEventData();
 		if ( NULL == focusEvent.mEventData.get() ) {
@@ -1035,7 +987,7 @@ namespace android {
 
 		if ( mShutterSubscribers.size() == 0 )
 		{
-			LOGE("No shutter Subscribers!");
+			LOGINFO("No shutter Subscribers!");
 			return NO_INIT;
 		}
 
@@ -1051,7 +1003,7 @@ namespace android {
 			shutterEvent.mCookie = ( void * ) mShutterSubscribers.keyAt(i);
 			eventCb = ( event_callback ) mShutterSubscribers.valueAt(i);
 
-			LOGE("Sending shutter callback");
+			LOGINFO("Sending shutter callback");
 
 			eventCb ( &shutterEvent );
 		}
@@ -1072,7 +1024,7 @@ namespace android {
 		LOG_FUNCTION_NAME;
 
 		if ( mZoomSubscribers.size() == 0 ) {
-			LOGE("No zoom Subscribers!");
+			LOGINFO("No zoom Subscribers!");
 			return NO_INIT;
 		}
 
@@ -1108,7 +1060,7 @@ namespace android {
 		LOG_FUNCTION_NAME;
 
 		if ( mFaceSubscribers.size() == 0 ) {
-			LOGE("No face detection subscribers!");
+			LOGINFO("No face detection subscribers!");
 			return NO_INIT;
 		}
 
@@ -1142,17 +1094,14 @@ namespace android {
 
 		if ( NULL == frame )
 		{
-			LOGE("Invalid CameraFrame");
+			LOGINFO("Invalid CameraFrame");
 			return -EINVAL;
 		}
 
-		LOGE("iiiiiii frame.mFrameType %d\n", frame->mFrameType);
+		LOGINFO("iiiiiii frame.mFrameType %d\n", frame->mFrameType);
 		switch (frame->mFrameType) {
 		case CameraFrame::IMAGE_FRAME:
 			{
-#if PPM_INSTRUMENTATION || PPM_INSTRUMENTATION_ABS
-				CameraHal::PPM("Shot to Jpeg: ", &mStartCapture);
-#endif
 				ret = __sendFrameToSubscribers(frame, &mImageSubscribers, CameraFrame::IMAGE_FRAME);
 			}
 			break;
@@ -1182,7 +1131,7 @@ namespace android {
 			}
 			break;
 		default:
-			LOGE("FRAMETYPE NOT SUPPORTED 0x%x", mask);
+			LOGINFO("FRAMETYPE NOT SUPPORTED 0x%x", mask);
 			break;
 		}
 		frame->mFrameMask &= ~mask;
@@ -1212,14 +1161,14 @@ EXIT:
 				callback = (frame_callback) subscribers->valueAt(i);
 
 				if (!callback) {
-					LOGE("callback not set for frame type: 0x%x", frameType);
+					LOGINFO("callback not set for frame type: 0x%x", frameType);
 					return -EINVAL;
 				}
-				LOGE("Post frame to callback %x\n",callback);
+				LOGINFO("Post frame to callback %x\n",callback);
 				callback(frame);
 			}
 		} else {
-			LOGE("Subscribers is null??");
+			LOGINFO("Subscribers is null??");
 			return -EINVAL;
 		}
 		LOG_FUNCTION_NAME_EXIT;
@@ -1273,7 +1222,7 @@ EXIT:
 					}
 					break;
 				default:
-					LOGE("FRAMETYPE NOT SUPPORTED 0x%x", lmask);
+					LOGINFO("FRAMETYPE NOT SUPPORTED 0x%x", lmask);
 					break;
 				}//SWITCH
 				mask &= ~lmask;
@@ -1646,7 +1595,7 @@ EXIT:
 			{
 
 			case CAMERA_USE_BUFFERS_PREVIEW:
-				LOGE("Adapter state switch INTIALIZED_STATE->LOADED_PREVIEW_STATE event = 0x%x",
+				LOGINFO("Adapter state switch INTIALIZED_STATE->LOADED_PREVIEW_STATE event = 0x%x",
 						operation);
 				mNextState = LOADED_PREVIEW_STATE;
 				break;
@@ -1655,13 +1604,13 @@ EXIT:
 			case CAMERA_QUERY_RESOLUTION_PREVIEW:
 			case CAMERA_QUERY_BUFFER_SIZE_IMAGE_CAPTURE:
 			case CAMERA_QUERY_BUFFER_SIZE_PREVIEW_DATA:
-				LOGE("Adapter state switch INTIALIZED_STATE->INTIALIZED_STATE event = 0x%x",
+				LOGINFO("Adapter state switch INTIALIZED_STATE->INTIALIZED_STATE event = 0x%x",
 						operation);
 				mNextState = INTIALIZED_STATE;
 				break;
 
 			default:
-				LOGE("Adapter state switch INTIALIZED_STATE Invalid Op! event = 0x%x",
+				LOGINFO("Adapter state switch INTIALIZED_STATE Invalid Op! event = 0x%x",
 						operation);
 				ret = INVALID_OPERATION;
 				break;
@@ -1676,7 +1625,7 @@ EXIT:
 			{
 
 			case CAMERA_START_PREVIEW:
-				LOGE("Adapter state switch LOADED_PREVIEW_STATE->PREVIEW_STATE event = 0x%x",
+				LOGINFO("Adapter state switch LOADED_PREVIEW_STATE->PREVIEW_STATE event = 0x%x",
 						operation);
 				mNextState = PREVIEW_STATE;
 				break;
@@ -1685,13 +1634,13 @@ EXIT:
 			case CAMERA_QUERY_BUFFER_SIZE_IMAGE_CAPTURE:
 			case CAMERA_QUERY_BUFFER_SIZE_PREVIEW_DATA:
 			case CAMERA_USE_BUFFERS_PREVIEW_DATA:
-				LOGE("Adapter state switch LOADED_PREVIEW_STATE->LOADED_PREVIEW_STATE event = 0x%x",
+				LOGINFO("Adapter state switch LOADED_PREVIEW_STATE->LOADED_PREVIEW_STATE event = 0x%x",
 						operation);
 				mNextState = LOADED_PREVIEW_STATE;
 				break;
 
 			default:
-				LOGE("Adapter state switch LOADED_PREVIEW Invalid Op! event = 0x%x",
+				LOGINFO("Adapter state switch LOADED_PREVIEW Invalid Op! event = 0x%x",
 						operation);
 				ret = INVALID_OPERATION;
 				break;
@@ -1706,31 +1655,31 @@ EXIT:
 			{
 
 			case CAMERA_STOP_PREVIEW:
-				LOGE("Adapter state switch PREVIEW_STATE->INTIALIZED_STATE event = 0x%x",
+				LOGINFO("Adapter state switch PREVIEW_STATE->INTIALIZED_STATE event = 0x%x",
 						operation);
 				mNextState = INTIALIZED_STATE;
 				break;
 
 			case CAMERA_PERFORM_AUTOFOCUS:
-				LOGE("Adapter state switch PREVIEW_STATE->AF_STATE event = 0x%x",
+				LOGINFO("Adapter state switch PREVIEW_STATE->AF_STATE event = 0x%x",
 						operation);
 				mNextState = AF_STATE;
 				break;
 
 			case CAMERA_START_SMOOTH_ZOOM:
-				LOGE("Adapter state switch PREVIEW_STATE->ZOOM_STATE event = 0x%x",
+				LOGINFO("Adapter state switch PREVIEW_STATE->ZOOM_STATE event = 0x%x",
 						operation);
 				mNextState = ZOOM_STATE;
 				break;
 
 			case CAMERA_USE_BUFFERS_IMAGE_CAPTURE:
-				LOGE("Adapter state switch PREVIEW_STATE->LOADED_CAPTURE_STATE event = 0x%x",
+				LOGINFO("Adapter state switch PREVIEW_STATE->LOADED_CAPTURE_STATE event = 0x%x",
 						operation);
 				mNextState = LOADED_CAPTURE_STATE;
 				break;
 
 			case CAMERA_START_VIDEO:
-				LOGE("Adapter state switch PREVIEW_STATE->VIDEO_STATE event = 0x%x",
+				LOGINFO("Adapter state switch PREVIEW_STATE->VIDEO_STATE event = 0x%x",
 						operation);
 				mNextState = VIDEO_STATE;
 				break;
@@ -1738,13 +1687,13 @@ EXIT:
 			case CAMERA_CANCEL_AUTOFOCUS:
 			case CAMERA_QUERY_BUFFER_SIZE_IMAGE_CAPTURE:
 			case CAMERA_STOP_SMOOTH_ZOOM:
-				LOGE("Adapter state switch PREVIEW_ACTIVE->PREVIEW_ACTIVE event = 0x%x",
+				LOGINFO("Adapter state switch PREVIEW_ACTIVE->PREVIEW_ACTIVE event = 0x%x",
 						operation);
 				mNextState = PREVIEW_STATE;
 				break;
 
 			default:
-				LOGE("Adapter state switch PREVIEW_ACTIVE Invalid Op! event = 0x%x",
+				LOGINFO("Adapter state switch PREVIEW_ACTIVE Invalid Op! event = 0x%x",
 						operation);
 				ret = INVALID_OPERATION;
 				break;
@@ -1759,19 +1708,19 @@ EXIT:
 			{
 
 			case CAMERA_START_IMAGE_CAPTURE:
-				LOGE("Adapter state switch LOADED_CAPTURE_STATE->CAPTURE_STATE event = 0x%x",
+				LOGINFO("Adapter state switch LOADED_CAPTURE_STATE->CAPTURE_STATE event = 0x%x",
 						operation);
 				mNextState = CAPTURE_STATE;
 				break;
 
 			case CAMERA_START_BRACKET_CAPTURE:
-				LOGE("Adapter state switch LOADED_CAPTURE_STATE->BRACKETING_STATE event = 0x%x",
+				LOGINFO("Adapter state switch LOADED_CAPTURE_STATE->BRACKETING_STATE event = 0x%x",
 						operation);
 				mNextState = BRACKETING_STATE;
 				break;
 
 			default:
-				LOGE("Adapter state switch LOADED_CAPTURE_STATE Invalid Op! event = 0x%x",
+				LOGINFO("Adapter state switch LOADED_CAPTURE_STATE Invalid Op! event = 0x%x",
 						operation);
 				ret = INVALID_OPERATION;
 				break;
@@ -1786,13 +1735,13 @@ EXIT:
 			{
 			case CAMERA_STOP_IMAGE_CAPTURE:
 			case CAMERA_STOP_BRACKET_CAPTURE:
-				LOGE("Adapter state switch CAPTURE_STATE->PREVIEW_STATE event = 0x%x",
+				LOGINFO("Adapter state switch CAPTURE_STATE->PREVIEW_STATE event = 0x%x",
 						operation);
 				mNextState = PREVIEW_STATE;
 				break;
 
 			default:
-				LOGE("Adapter state switch CAPTURE_STATE Invalid Op! event = 0x%x",
+				LOGINFO("Adapter state switch CAPTURE_STATE Invalid Op! event = 0x%x",
 						operation);
 				ret = INVALID_OPERATION;
 				break;
@@ -1808,19 +1757,19 @@ EXIT:
 
 			case CAMERA_STOP_IMAGE_CAPTURE:
 			case CAMERA_STOP_BRACKET_CAPTURE:
-				LOGE("Adapter state switch BRACKETING_STATE->PREVIEW_STATE event = 0x%x",
+				LOGINFO("Adapter state switch BRACKETING_STATE->PREVIEW_STATE event = 0x%x",
 						operation);
 				mNextState = PREVIEW_STATE;
 				break;
 
 			case CAMERA_START_IMAGE_CAPTURE:
-				LOGE("Adapter state switch BRACKETING_STATE->CAPTURE_STATE event = 0x%x",
+				LOGINFO("Adapter state switch BRACKETING_STATE->CAPTURE_STATE event = 0x%x",
 						operation);
 				mNextState = CAPTURE_STATE;
 				break;
 
 			default:
-				LOGE("Adapter state switch BRACKETING_STATE Invalid Op! event = 0x%x",
+				LOGINFO("Adapter state switch BRACKETING_STATE Invalid Op! event = 0x%x",
 						operation);
 				ret = INVALID_OPERATION;
 				break;
@@ -1835,19 +1784,19 @@ EXIT:
 			{
 
 			case CAMERA_CANCEL_AUTOFOCUS:
-				LOGE("Adapter state switch AF_STATE->PREVIEW_STATE event = 0x%x",
+				LOGINFO("Adapter state switch AF_STATE->PREVIEW_STATE event = 0x%x",
 						operation);
 				mNextState = PREVIEW_STATE;
 				break;
 
 			case CAMERA_START_SMOOTH_ZOOM:
-				LOGE("Adapter state switch AF_STATE->AF_ZOOM_STATE event = 0x%x",
+				LOGINFO("Adapter state switch AF_STATE->AF_ZOOM_STATE event = 0x%x",
 						operation);
 				mNextState = AF_ZOOM_STATE;
 				break;
 
 			default:
-				LOGE("Adapter state switch AF_STATE Invalid Op! event = 0x%x",
+				LOGINFO("Adapter state switch AF_STATE Invalid Op! event = 0x%x",
 						operation);
 				ret = INVALID_OPERATION;
 				break;
@@ -1862,31 +1811,31 @@ EXIT:
 			{
 
 			case CAMERA_CANCEL_AUTOFOCUS:
-				LOGE("Adapter state switch AF_STATE->PREVIEW_STATE event = 0x%x",
+				LOGINFO("Adapter state switch AF_STATE->PREVIEW_STATE event = 0x%x",
 						operation);
 				mNextState = ZOOM_STATE;
 				break;
 
 			case CAMERA_STOP_SMOOTH_ZOOM:
-				LOGE("Adapter state switch ZOOM_STATE->PREVIEW_STATE event = 0x%x",
+				LOGINFO("Adapter state switch ZOOM_STATE->PREVIEW_STATE event = 0x%x",
 						operation);
 				mNextState = PREVIEW_STATE;
 				break;
 
 			case CAMERA_PERFORM_AUTOFOCUS:
-				LOGE("Adapter state switch ZOOM_STATE->AF_ZOOM_STATE event = 0x%x",
+				LOGINFO("Adapter state switch ZOOM_STATE->AF_ZOOM_STATE event = 0x%x",
 						operation);
 				mNextState = AF_ZOOM_STATE;
 				break;
 
 			case CAMERA_START_VIDEO:
-				LOGE("Adapter state switch ZOOM_STATE->VIDEO_ZOOM_STATE event = 0x%x",
+				LOGINFO("Adapter state switch ZOOM_STATE->VIDEO_ZOOM_STATE event = 0x%x",
 						operation);
 				mNextState = VIDEO_ZOOM_STATE;
 				break;
 
 			default:
-				LOGE("Adapter state switch ZOOM_STATE Invalid Op! event = 0x%x",
+				LOGINFO("Adapter state switch ZOOM_STATE Invalid Op! event = 0x%x",
 						operation);
 				ret = INVALID_OPERATION;
 				break;
@@ -1901,37 +1850,37 @@ EXIT:
 			{
 
 			case CAMERA_STOP_VIDEO:
-				LOGE("Adapter state switch VIDEO_STATE->PREVIEW_STATE event = 0x%x",
+				LOGINFO("Adapter state switch VIDEO_STATE->PREVIEW_STATE event = 0x%x",
 						operation);
 				mNextState = PREVIEW_STATE;
 				break;
 
 			case CAMERA_PERFORM_AUTOFOCUS:
-				LOGE("Adapter state switch VIDEO_STATE->VIDEO_AF_STATE event = 0x%x",
+				LOGINFO("Adapter state switch VIDEO_STATE->VIDEO_AF_STATE event = 0x%x",
 						operation);
 				mNextState = VIDEO_AF_STATE;
 				break;
 
 			case CAMERA_START_SMOOTH_ZOOM:
-				LOGE("Adapter state switch VIDEO_STATE->VIDEO_ZOOM_STATE event = 0x%x",
+				LOGINFO("Adapter state switch VIDEO_STATE->VIDEO_ZOOM_STATE event = 0x%x",
 						operation);
 				mNextState = VIDEO_ZOOM_STATE;
 				break;
 
 			case CAMERA_USE_BUFFERS_IMAGE_CAPTURE:
-				LOGE("Adapter state switch VIDEO_STATE->VIDEO_LOADED_CAPTURE_STATE event = 0x%x",
+				LOGINFO("Adapter state switch VIDEO_STATE->VIDEO_LOADED_CAPTURE_STATE event = 0x%x",
 						operation);
 				mNextState = VIDEO_LOADED_CAPTURE_STATE;
 				break;
 
 			case CAMERA_QUERY_BUFFER_SIZE_IMAGE_CAPTURE:
-				LOGE("Adapter state switch VIDEO_STATE->VIDEO_STATE event = 0x%x",
+				LOGINFO("Adapter state switch VIDEO_STATE->VIDEO_STATE event = 0x%x",
 						operation);
 				mNextState = VIDEO_STATE;
 				break;
 
 			default:
-				LOGE("Adapter state switch VIDEO_STATE Invalid Op! event = 0x%x",
+				LOGINFO("Adapter state switch VIDEO_STATE Invalid Op! event = 0x%x",
 						operation);
 				ret = INVALID_OPERATION;
 				break;
@@ -1946,13 +1895,13 @@ EXIT:
 			{
 
 			case CAMERA_CANCEL_AUTOFOCUS:
-				LOGE("Adapter state switch VIDEO_AF_STATE->VIDEO_STATE event = 0x%x",
+				LOGINFO("Adapter state switch VIDEO_AF_STATE->VIDEO_STATE event = 0x%x",
 						operation);
 				mNextState = VIDEO_STATE;
 				break;
 
 			default:
-				LOGE("Adapter state switch VIDEO_AF_STATE Invalid Op! event = 0x%x",
+				LOGINFO("Adapter state switch VIDEO_AF_STATE Invalid Op! event = 0x%x",
 						operation);
 				ret = INVALID_OPERATION;
 				break;
@@ -1967,13 +1916,13 @@ EXIT:
 			{
 
 			case CAMERA_START_IMAGE_CAPTURE:
-				LOGE("Adapter state switch LOADED_CAPTURE_STATE->CAPTURE_STATE event = 0x%x",
+				LOGINFO("Adapter state switch LOADED_CAPTURE_STATE->CAPTURE_STATE event = 0x%x",
 						operation);
 				mNextState = VIDEO_CAPTURE_STATE;
 				break;
 
 			default:
-				LOGE("Adapter state switch LOADED_CAPTURE_STATE Invalid Op! event = 0x%x",
+				LOGINFO("Adapter state switch LOADED_CAPTURE_STATE Invalid Op! event = 0x%x",
 						operation);
 				ret = INVALID_OPERATION;
 				break;
@@ -1987,13 +1936,13 @@ EXIT:
 			switch ( operation )
 			{
 			case CAMERA_STOP_IMAGE_CAPTURE:
-				LOGE("Adapter state switch CAPTURE_STATE->PREVIEW_STATE event = 0x%x",
+				LOGINFO("Adapter state switch CAPTURE_STATE->PREVIEW_STATE event = 0x%x",
 						operation);
 				mNextState = VIDEO_STATE;
 				break;
 
 			default:
-				LOGE("Adapter state switch CAPTURE_STATE Invalid Op! event = 0x%x",
+				LOGINFO("Adapter state switch CAPTURE_STATE Invalid Op! event = 0x%x",
 						operation);
 				ret = INVALID_OPERATION;
 				break;
@@ -2008,19 +1957,19 @@ EXIT:
 			{
 
 			case CAMERA_STOP_SMOOTH_ZOOM:
-				LOGE("Adapter state switch AF_ZOOM_STATE->AF_STATE event = 0x%x",
+				LOGINFO("Adapter state switch AF_ZOOM_STATE->AF_STATE event = 0x%x",
 						operation);
 				mNextState = AF_STATE;
 				break;
 
 			case CAMERA_CANCEL_AUTOFOCUS:
-				LOGE("Adapter state switch AF_ZOOM_STATE->ZOOM_STATE event = 0x%x",
+				LOGINFO("Adapter state switch AF_ZOOM_STATE->ZOOM_STATE event = 0x%x",
 						operation);
 				mNextState = ZOOM_STATE;
 				break;
 
 			default:
-				LOGE("Adapter state switch AF_ZOOM_STATE Invalid Op! event = 0x%x",
+				LOGINFO("Adapter state switch AF_ZOOM_STATE Invalid Op! event = 0x%x",
 						operation);
 				ret = INVALID_OPERATION;
 				break;
@@ -2035,19 +1984,19 @@ EXIT:
 			{
 
 			case CAMERA_STOP_SMOOTH_ZOOM:
-				LOGE("Adapter state switch VIDEO_ZOOM_STATE->VIDEO_STATE event = 0x%x",
+				LOGINFO("Adapter state switch VIDEO_ZOOM_STATE->VIDEO_STATE event = 0x%x",
 						operation);
 				mNextState = VIDEO_STATE;
 				break;
 
 			case CAMERA_STOP_VIDEO:
-				LOGE("Adapter state switch VIDEO_ZOOM_STATE->ZOOM_STATE event = 0x%x",
+				LOGINFO("Adapter state switch VIDEO_ZOOM_STATE->ZOOM_STATE event = 0x%x",
 						operation);
 				mNextState = ZOOM_STATE;
 				break;
 
 			default:
-				LOGE("Adapter state switch VIDEO_ZOOM_STATE Invalid Op! event = 0x%x",
+				LOGINFO("Adapter state switch VIDEO_ZOOM_STATE Invalid Op! event = 0x%x",
 						operation);
 				ret = INVALID_OPERATION;
 				break;
@@ -2062,13 +2011,13 @@ EXIT:
 			{
 
 			case CAMERA_STOP_SMOOTH_ZOOM:
-				LOGE("Adapter state switch BRACKETING_ZOOM_STATE->BRACKETING_STATE event = 0x%x",
+				LOGINFO("Adapter state switch BRACKETING_ZOOM_STATE->BRACKETING_STATE event = 0x%x",
 						operation);
 				mNextState = BRACKETING_STATE;
 				break;
 
 			default:
-				LOGE("Adapter state switch BRACKETING_ZOOM_STATE Invalid Op! event = 0x%x",
+				LOGINFO("Adapter state switch BRACKETING_ZOOM_STATE Invalid Op! event = 0x%x",
 						operation);
 				ret = INVALID_OPERATION;
 				break;
@@ -2078,7 +2027,7 @@ EXIT:
 			break;
 
 		default:
-			LOGE("Invalid Adapter state!");
+			LOGINFO("Invalid Adapter state!");
 			ret = INVALID_OPERATION;
 		}
 

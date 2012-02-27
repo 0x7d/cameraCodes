@@ -28,8 +28,6 @@
 
 #include "CameraHal.h"
 #include "Encoder_libjpeg.h"
-#include "NV12_resize.h"
-
 #include <stdlib.h>
 #include <unistd.h>
 #include <sys/types.h>
@@ -261,35 +259,6 @@ namespace android {
 		return 0;
 	}
 
-	static void resize_nv12(Encoder_libjpeg::params* params, uint8_t* dst_buffer) {
-		LOG_FUNCTION_NAME;
-
-		structConvImage o_img_ptr, i_img_ptr;
-
-		if (!params || !dst_buffer) {
-			return;
-		}
-
-		//input
-		i_img_ptr.uWidth =  params->in_width;
-		i_img_ptr.uStride =  i_img_ptr.uWidth;
-		i_img_ptr.uHeight =  params->in_height;
-		i_img_ptr.eFormat = IC_FORMAT_YCbCr420_lp;
-		i_img_ptr.imgPtr = (uint8_t*) params->src;
-		i_img_ptr.clrPtr = i_img_ptr.imgPtr + (i_img_ptr.uWidth * i_img_ptr.uHeight);
-
-		//ouput
-		o_img_ptr.uWidth = params->out_width;
-		o_img_ptr.uStride = o_img_ptr.uWidth;
-		o_img_ptr.uHeight = params->out_height;
-		o_img_ptr.eFormat = IC_FORMAT_YCbCr420_lp;
-		o_img_ptr.imgPtr = dst_buffer;
-		o_img_ptr.clrPtr = o_img_ptr.imgPtr + (o_img_ptr.uWidth * o_img_ptr.uHeight);
-
-		VT_resizeFrame_Video_opt2_lp(&i_img_ptr, &o_img_ptr, NULL, 0);
-		LOG_FUNCTION_NAME_EXIT;
-	}
-
 	/* public static functions */
 	const char* ExifElementsTable::degreesToExifOrientation(const char* degrees) {
 		for (unsigned int i = 0; i < ARRAY_SIZE(degress_to_exif_lut); i++) {
@@ -367,7 +336,7 @@ namespace android {
 
 		if ((len > 0) && jpeg_opened) {
 			ret = ReplaceThumbnailFromBuffer(thumb, len);
-			LOGE("insertExifThumbnailImage. ReplaceThumbnail(). ret=%d", ret);
+			LOGINFO("insertExifThumbnailImage. ReplaceThumbnail(). ret=%d", ret);
 		}
 
 		return ret;
@@ -405,7 +374,7 @@ namespace android {
 		}
 
 		if (position >= MAX_EXIF_TAGS_SUPPORTED) {
-			LOGE("Max number of EXIF elements already inserted");
+			LOGINFO("Max number of EXIF elements already inserted");
 			return NO_MEMORY;
 		}
 
@@ -469,7 +438,7 @@ namespace android {
 		libjpeg_destination_mgr dest_mgr(input->dst, input->dst_size);
 		pRGB = (uint8_t *)calloc(1, in_width * in_height * 3);
 
-		LOGE("encoding...      \n\t"
+		LOGINFO("encoding...      \n\t"
 				"in_width:        %d\n\t"
 				"out_width:       %d\n\t"
 				"in_height        %d\n\t"
@@ -499,23 +468,17 @@ namespace android {
 		}
 
 		if (strcmp(input->format, CameraParameters::PIXEL_FORMAT_YUV420SP) == 0) {
-			LOGE("Encode: format PIXEL_FORMAT_YUV420SP");
-			bpp = 1;
-			if ((in_width != out_width) || (in_height != out_height)) {
-				resize_src = (uint8_t*) malloc(input->dst_size);
-				resize_nv12(input, resize_src);
-				if (resize_src) src = resize_src;
-			}
+			LOGINFO("Encode: format PIXEL_FORMAT_YUV420SP");
 		}else if (strcmp(input->format, CameraParameters::PIXEL_FORMAT_YUV422I) == 0) {
-			LOGE("Encoder: format PIXEL_FORMAT_YUV422I");
+			LOGINFO("Encoder: format PIXEL_FORMAT_YUV422I");
 			yuv422_to_rgb(src, pRGB,in_width, in_height);
 			rgb24_to_jpeg(pRGB, &dest_mgr, input);
 		}else if ((in_width != out_width) || (in_height != out_height)) {
-			LOGE("Encoder: resizing is not supported for this format: %s", input->format);
+			LOGINFO("Encoder: resizing is not supported for this format: %s", input->format);
 			goto exit;
 		}
 		else{
-			LOGE("Nothing to do!!!\n");
+			LOGINFO("Nothing to do!!!\n");
 			goto exit;
 		}
 
@@ -524,7 +487,7 @@ exit:
 		free(pRGB);
 		pRGB = NULL;
 		input->jpeg_size = dest_mgr.jpegsize;
-		LOGE("dest_mgr.jpegsize %d\n", dest_mgr.jpegsize);
+		LOGINFO("dest_mgr.jpegsize %d\n", dest_mgr.jpegsize);
 
 		LOG_FUNCTION_NAME_EXIT;
 		return dest_mgr.jpegsize;

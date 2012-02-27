@@ -34,41 +34,6 @@ namespace android {
 	const int ANativeWindowDisplayAdapter::FAILED_DQS_TO_SUSPEND = 3;
 
 
-	OMX_COLOR_FORMATTYPE toOMXPixFormat(const char* parameters_format)
-	{
-		OMX_COLOR_FORMATTYPE pixFormat;
-
-		if ( parameters_format != NULL )
-		{
-			if (strcmp(parameters_format, (const char *) CameraParameters::PIXEL_FORMAT_YUV422I) == 0)
-			{
-				LOGE("CbYCrY format selected");
-				pixFormat = OMX_COLOR_FormatCbYCrY;
-			}
-			else if(strcmp(parameters_format, (const char *) CameraParameters::PIXEL_FORMAT_YUV420SP) == 0)
-			{
-				LOGE("YUV420SP format selected");
-				pixFormat = OMX_COLOR_FormatYUV420SemiPlanar;
-			}
-			else if(strcmp(parameters_format, (const char *) CameraParameters::PIXEL_FORMAT_RGB565) == 0)
-			{
-				LOGE("RGB565 format selected");
-				pixFormat = OMX_COLOR_Format16bitRGB565;
-			}
-			else
-			{
-				LOGE("Invalid format, CbYCrY format selected as default");
-				pixFormat = OMX_COLOR_FormatCbYCrY;
-			}
-		}
-		else {
-			LOGE("Preview format is NULL, defaulting to CbYCrY");
-			pixFormat = OMX_COLOR_FormatCbYCrY;
-		}
-
-		return pixFormat;
-	}
-
 	const char* getPixFormatConstant(const char* parameters_format)
 	{
 		const char* pixFormat;
@@ -77,30 +42,30 @@ namespace android {
 		{
 			if (strcmp(parameters_format, (const char *) CameraParameters::PIXEL_FORMAT_YUV422I) == 0)
 			{
-				LOGE("CbYCrY format selected");
+				LOGINFO("CbYCrY format selected");
 				pixFormat = (const char *) CameraParameters::PIXEL_FORMAT_YUV422I;
 			}
 			else if(strcmp(parameters_format, (const char *) CameraParameters::PIXEL_FORMAT_YUV420SP) == 0 ||
 					strcmp(parameters_format, (const char *) CameraParameters::PIXEL_FORMAT_YUV420P) == 0)
 			{
 				// TODO(XXX): We are treating YV12 the same as YUV420SP
-				LOGE("YUV420SP format selected");
+				LOGINFO("YUV420SP format selected");
 				pixFormat = (const char *) CameraParameters::PIXEL_FORMAT_YUV420SP;
 			}
 			else if(strcmp(parameters_format, (const char *) CameraParameters::PIXEL_FORMAT_RGB565) == 0)
 			{
-				LOGE("RGB565 format selected");
+				LOGINFO("RGB565 format selected");
 				pixFormat = (const char *) CameraParameters::PIXEL_FORMAT_RGB565;
 			}
 			else
 			{
-				LOGE("Invalid format, CbYCrY format selected as default");
+				LOGINFO("Invalid format, CbYCrY format selected as default");
 				pixFormat = (const char *) CameraParameters::PIXEL_FORMAT_YUV422I;
 			}
 		}
 		else
 		{
-			LOGE("Preview format is NULL, defaulting to CbYCrY");
+			LOGINFO("Preview format is NULL, defaulting to CbYCrY");
 			pixFormat = (const char *) CameraParameters::PIXEL_FORMAT_YUV422I;
 		}
 
@@ -124,18 +89,16 @@ namespace android {
 						(const char *) CameraParameters::PIXEL_FORMAT_RGB565) == 0) {
 				buf_size = width * height * 2;
 			} else {
-				LOGE("Invalid format");
+				LOGINFO("Invalid format");
 				buf_size = 0;
 			}
 		} else {
-			LOGE("Preview format is NULL");
+			LOGINFO("Preview format is NULL");
 			buf_size = 0;
 		}
 
 		return buf_size;
 	}
-	/*--------------------ANativeWindowDisplayAdapter Class STARTS here-----------------------------*/
-
 
 	/**
 	 * Display Adapter class STARTS here..
@@ -149,17 +112,6 @@ namespace android {
 
 	{
 		LOG_FUNCTION_NAME;
-
-#if PPM_INSTRUMENTATION || PPM_INSTRUMENTATION_ABS
-
-		mShotToShot = false;
-		mStartCapture.tv_sec = 0;
-		mStartCapture.tv_usec = 0;
-		mStandbyToShot.tv_sec = 0;
-		mStandbyToShot.tv_usec = 0;
-		mMeasureStandby = false;
-#endif
-
 		mPixelFormat = NULL;
 		mBufferHandleMap = NULL;
 		mGrallocHandleMap = NULL;
@@ -238,7 +190,7 @@ namespace android {
 		mDisplayThread = new DisplayThread(this);
 		if ( !mDisplayThread.get() )
 		{
-			LOGE("Couldn't create display thread");
+			LOGINFO("Couldn't create display thread");
 			LOG_FUNCTION_NAME_EXIT;
 			return NO_MEMORY;
 		}
@@ -247,7 +199,7 @@ namespace android {
 		status_t ret = mDisplayThread->run("DisplayThread", PRIORITY_URGENT_DISPLAY);
 		if ( ret != NO_ERROR )
 		{
-			LOGE("Couldn't run display thread");
+			LOGINFO("Couldn't run display thread");
 			LOG_FUNCTION_NAME_EXIT;
 			return ret;
 		}
@@ -263,7 +215,7 @@ namespace android {
 		///Note that Display Adapter cannot work without a valid window object
 		if ( !window)
 		{
-			LOGE("NULL window object passed to DisplayAdapter");
+			LOGINFO("NULL window object passed to DisplayAdapter");
 			LOG_FUNCTION_NAME_EXIT;
 			return BAD_VALUE;
 		}
@@ -285,7 +237,7 @@ namespace android {
 
 		// Check for NULL pointer
 		if ( !frameProvider ) {
-			LOGE("NULL passed for frame provider");
+			LOGINFO("NULL passed for frame provider");
 			LOG_FUNCTION_NAME_EXIT;
 			return BAD_VALUE;
 		}
@@ -313,7 +265,7 @@ namespace android {
 
 		if ( NULL == errorNotifier )
 		{
-			LOGE("Invalid Error Notifier reference");
+			LOGINFO("Invalid Error Notifier reference");
 			ret = -EINVAL;
 		}
 
@@ -327,28 +279,6 @@ namespace android {
 		return ret;
 	}
 
-#if PPM_INSTRUMENTATION || PPM_INSTRUMENTATION_ABS
-
-	status_t ANativeWindowDisplayAdapter::setSnapshotTimeRef(struct timeval *refTime)
-	{
-		status_t ret = NO_ERROR;
-
-		LOG_FUNCTION_NAME;
-
-		if ( NULL != refTime )
-		{
-			Mutex::Autolock lock(mLock);
-			memcpy(&mStartCapture, refTime, sizeof(struct timeval));
-		}
-
-		LOG_FUNCTION_NAME_EXIT;
-
-		return ret;
-	}
-
-#endif
-
-
 	int ANativeWindowDisplayAdapter::enableDisplay(int width, int height, struct timeval *refTime, S3DParameters *s3dParams)
 	{
 		Semaphore sem;
@@ -358,28 +288,11 @@ namespace android {
 
 		if ( mDisplayEnabled )
 		{
-			LOGE("Display is already enabled");
+			LOGINFO("Display is already enabled");
 			LOG_FUNCTION_NAME_EXIT;
 
 			return NO_ERROR;
 		}
-
-#if 0 //TODO: s3d is not part of bringup...will reenable
-		if (s3dParams)
-			mOverlay->set_s3d_params(s3dParams->mode, s3dParams->framePacking,
-					s3dParams->order, s3dParams->subSampling);
-#endif
-
-#if PPM_INSTRUMENTATION || PPM_INSTRUMENTATION_ABS
-
-		if ( NULL != refTime )
-		{
-			Mutex::Autolock lock(mLock);
-			memcpy(&mStandbyToShot, refTime, sizeof(struct timeval));
-			mMeasureStandby = true;
-		}
-
-#endif
 
 		//Send START_DISPLAY COMMAND to display thread. Display thread will start and then wait for a message
 		sem.Create();
@@ -401,7 +314,7 @@ namespace android {
 		mPreviewWidth = width;
 		mPreviewHeight = height;
 
-		LOGE("mPreviewWidth = %d mPreviewHeight = %d", mPreviewWidth, mPreviewHeight);
+		LOGINFO("mPreviewWidth = %d mPreviewHeight = %d", mPreviewWidth, mPreviewHeight);
 
 		LOG_FUNCTION_NAME_EXIT;
 
@@ -410,14 +323,14 @@ namespace android {
 
 	int ANativeWindowDisplayAdapter::disableDisplay(bool cancel_buffer)
 	{
+		LOG_FUNCTION_NAME;
+
 		status_t ret = NO_ERROR;
 		GraphicBufferMapper &mapper = GraphicBufferMapper::get();
 
-		LOG_FUNCTION_NAME;
-
 		if(!mDisplayEnabled)
 		{
-			LOGE("Display is already disabled");
+			LOGINFO("Display is already disabled");
 			LOG_FUNCTION_NAME_EXIT;
 			return ALREADY_EXISTS;
 		}
@@ -473,8 +386,6 @@ namespace android {
 				// Clear the frames with camera adapter map
 				mFramesWithCameraAdapterMap.clear();
 			}
-
-
 		}
 		LOG_FUNCTION_NAME_EXIT;
 
@@ -505,7 +416,7 @@ namespace android {
 		///Check if the display is disabled, if not disable it
 		if ( mDisplayEnabled )
 		{
-			LOGE("WARNING: Calling destroy of Display adapter when display enabled. Disabling display..");
+			LOGINFO("WARNING: Calling destroy of Display adapter when display enabled. Disabling display..");
 			disableDisplay(false);
 		}
 
@@ -534,31 +445,29 @@ namespace android {
 		// Set gralloc usage bits for window.
 		err = mANativeWindow->set_usage(mANativeWindow, CAMHAL_GRALLOC_USAGE);
 		if (err != 0) {
-			LOGE("native_window_set_usage failed: %s (%d)", strerror(-err), -err);
+			LOGINFO("native_window_set_usage failed: %s (%d)", strerror(-err), -err);
 
 			if (ENODEV == err) {
-				LOGE("Preview surface abandoned!");
+				LOGINFO("Preview surface abandoned!");
 				mANativeWindow = NULL;
 			}
-
 			return NULL;
 		}
 
-		LOGE("Number of buffers set to ANativeWindow %d", numBufs);
+		LOGINFO("Number of buffers set to ANativeWindow %d", numBufs);
 		///Set the number of buffers needed for camera preview
 		err = mANativeWindow->set_buffer_count(mANativeWindow, numBufs);
 		if (err != 0) {
-			LOGE("native_window_set_buffer_count failed: %s (%d)", strerror(-err),
-					-err);
+			LOGINFO("set_buffer_count failed: %s (%d)", strerror(-err), -err);
 
 			if (ENODEV == err) {
-				LOGE("Preview surface abandoned!");
+				LOGINFO("Preview surface abandoned!");
 				mANativeWindow = NULL;
 			}
 
 			return NULL;
 		}
-		LOGE("Configuring %d buffers for ANativeWindow", numBufs);
+		LOGINFO("Configuring %d buffers for ANativeWindow", numBufs);
 		mBufferCount = numBufs;
 
 		// Set window geometry
@@ -569,11 +478,11 @@ namespace android {
 				); //current camera is YUYV,which same as YUY2
 
 		if (err != 0) {
-			LOGE("native_window_set_buffers_geometry failed: %s (%d)",
+			LOGINFO("native_window_set_buffers_geometry failed: %s (%d)",
 					strerror(-err), -err);
 
 			if (ENODEV == err) {
-				LOGE("Preview surface abandoned!");
+				LOGINFO("Preview surface abandoned!");
 				mANativeWindow = NULL;
 			}
 
@@ -584,14 +493,14 @@ namespace android {
 		///re-allocate buffers using ANativeWindow and then get them
 		///@todo - Re-allocate buffers for vnf and vstab using the width, height, format, numBufs etc
 		if (mBufferHandleMap == NULL) {
-			LOGE("Couldn't create array for ANativeWindow buffers");
+			LOGINFO("Couldn't create array for ANativeWindow buffers");
 			LOG_FUNCTION_NAME_EXIT;
 			return NULL;
 		}
 
 		mANativeWindow->get_min_undequeued_buffer_count(mANativeWindow, &undequeued);
 		bytes = getBufSize(format, width, height);
-		LOGE("mBufferCount %d, undequeued %d\n", mBufferCount, undequeued);
+		LOGINFO("mBufferCount %d, undequeued %d\n", mBufferCount, undequeued);
 
 		// lock the initial queueable buffers
 		bounds.left = 0;
@@ -607,9 +516,9 @@ namespace android {
 			err = mANativeWindow->dequeue_buffer(mANativeWindow, &buf, &stride);
 
 			if (err != 0) {
-				LOGE("dequeueBuffer failed: %s (%d)", strerror(-err), -err);
+				LOGINFO("dequeueBuffer failed: %s (%d)", strerror(-err), -err);
 				if (ENODEV == err) {
-					LOGE("Preview surface abandoned!");
+					LOGINFO("Preview surface abandoned!");
 					mANativeWindow = NULL;
 				}
 				goto fail;
@@ -621,12 +530,15 @@ namespace android {
 			mapper.lock((buffer_handle_t) *mBufferHandleMap[i], CAMHAL_GRALLOC_USAGE, bounds, &y_uv);
 			mapper.unlock((buffer_handle_t) *mBufferHandleMap[i]);
 			mGrallocHandleMap[i] = (IMG_native_handle_t*)y_uv;
-			mFramesWithCameraAdapterMap.add((int) mGrallocHandleMap[i], i);
 
-			//if(i < mBufferCount - undequeued)
+			//if(i < mBufferCount - undequeued){
 				mANativeWindow->lock_buffer(mANativeWindow, mBufferHandleMap[i]);
-			//else
+				mFramesWithCameraAdapterMap.add((int) mGrallocHandleMap[i], i);
+			//}
+			//else{
 				//mANativeWindow->cancel_buffer(mANativeWindow, mBufferHandleMap[i]);
+       	 		//mFramesWithCameraAdapterMap.removeItem((int) mGrallocHandleMap[i]);
+			//}
 		}
 
 		mFirstInit = true;
@@ -642,15 +554,15 @@ fail:
 			int err = mANativeWindow->cancel_buffer(mANativeWindow,
 					mBufferHandleMap[start]);
 			if (err != 0) {
-				LOGE("cancelBuffer failed w/ error 0x%08x", err);
+				LOGINFO("cancelBuffer failed w/ error 0x%08x", err);
 				break;
 			}
 			mFramesWithCameraAdapterMap.removeItem((int) mGrallocHandleMap[start]);
 		}
 
-		freeBuffer(mGrallocHandleMap);
+		freeBuffers(mGrallocHandleMap);
 
-		LOGE("Error occurred, performing cleanup");
+		LOGINFO("Error occurred, performing cleanup");
 
 		if (NULL != mErrorNotifier.get()) {
 			mErrorNotifier->errorNotify(-ENOMEM);
@@ -658,6 +570,92 @@ fail:
 
 		LOG_FUNCTION_NAME_EXIT;
 		return NULL;
+
+	}
+
+	int ANativeWindowDisplayAdapter::freeBuffers(void* buf)
+	{
+		LOG_FUNCTION_NAME;
+
+		int *buffers = (int *) buf;
+		status_t ret = NO_ERROR;
+
+		Mutex::Autolock lock(mLock);
+
+		if((int *)mGrallocHandleMap != buffers)
+		{
+			LOGINFO("CameraHal passed wrong set of buffers to free!!!");
+			if (mGrallocHandleMap != NULL)
+				delete []mGrallocHandleMap;
+			mGrallocHandleMap = NULL;
+		}
+
+
+		returnBuffersToWindow();
+
+		if ( NULL != buf )
+		{
+			delete [] buffers;
+			mGrallocHandleMap = NULL;
+		}
+
+		if( mBufferHandleMap != NULL)
+		{
+			delete [] mBufferHandleMap;
+			mBufferHandleMap = NULL;
+		}
+
+		if ( NULL != mOffsetsMap )
+		{
+			delete [] mOffsetsMap;
+			mOffsetsMap = NULL;
+		}
+
+		if( mFD != -1)
+		{
+			close(mFD);  // close duped handle
+			mFD = -1;
+		}
+
+		LOG_FUNCTION_NAME_EXIT;
+		return NO_ERROR;
+	}
+
+	status_t ANativeWindowDisplayAdapter::returnBuffersToWindow()
+	{
+		LOG_FUNCTION_NAME;
+		
+		status_t ret = NO_ERROR;
+		GraphicBufferMapper &mapper = GraphicBufferMapper::get();
+		//Give the buffers back to display here -  sort of free it
+		if (mANativeWindow){
+			for(unsigned int i = 0; i < mFramesWithCameraAdapterMap.size(); i++) {
+				int value = mFramesWithCameraAdapterMap.valueAt(i);
+
+				// unlock buffer before giving it up
+				mapper.unlock((buffer_handle_t) *mBufferHandleMap[value]);
+				
+
+				ret = mANativeWindow->cancel_buffer(mANativeWindow, mBufferHandleMap[value]);
+				if ( ENODEV == ret ) {
+					LOGINFO("Preview surface abandoned!");
+					mANativeWindow = NULL;
+					return -ret;
+				} else if ( NO_ERROR != ret ) {
+					LOGINFO("cancel_buffer() failed: %s (%d)",
+							strerror(-ret),
+							-ret);
+					return -ret;
+				}
+			}
+		}
+		else{
+			LOGINFO("mANativeWindow is NULL");
+		}
+
+		mFramesWithCameraAdapterMap.clear();
+		LOG_FUNCTION_NAME_EXIT;
+		return ret;
 
 	}
 
@@ -671,13 +669,13 @@ fail:
 
 		if ( NULL == mANativeWindow )
 		{
-			LOGE("mANativeWindow reference is missing");
+			LOGINFO("mANativeWindow reference is missing");
 			goto fail;
 		}
 
 		if( mBufferHandleMap == NULL)
 		{
-			LOGE("Buffers not allocated yet!!");
+			LOGINFO("Buffers not allocated yet!!");
 			goto fail;
 		}
 
@@ -733,10 +731,10 @@ fail:
 
 		ret = mANativeWindow->get_min_undequeued_buffer_count(mANativeWindow, &undequeued);
 		if ( NO_ERROR != ret ) {
-			LOGE("get_min_undequeued_buffer_count failed: %s (%d)", strerror(-ret), -ret);
+			LOGINFO("get_min_undequeued_buffer_count failed: %s (%d)", strerror(-ret), -ret);
 
 			if ( ENODEV == ret ) {
-				LOGE("Preview surface abandoned!");
+				LOGINFO("Preview surface abandoned!");
 				mANativeWindow = NULL;
 			}
 
@@ -768,89 +766,6 @@ end:
 
 	}
 
-	status_t ANativeWindowDisplayAdapter::returnBuffersToWindow()
-	{
-		status_t ret = NO_ERROR;
-
-		GraphicBufferMapper &mapper = GraphicBufferMapper::get();
-		//Give the buffers back to display here -  sort of free it
-		if (mANativeWindow)
-			for(unsigned int i = 0; i < mFramesWithCameraAdapterMap.size(); i++) {
-				int value = mFramesWithCameraAdapterMap.valueAt(i);
-
-				// unlock buffer before giving it up
-				mapper.unlock((buffer_handle_t) mGrallocHandleMap[value]);
-
-				ret = mANativeWindow->cancel_buffer(mANativeWindow, mBufferHandleMap[value]);
-				if ( ENODEV == ret ) {
-					LOGE("Preview surface abandoned!");
-					mANativeWindow = NULL;
-					return -ret;
-				} else if ( NO_ERROR != ret ) {
-					LOGE("cancel_buffer() failed: %s (%d)",
-							strerror(-ret),
-							-ret);
-					return -ret;
-				}
-			}
-		else
-			LOGE("mANativeWindow is NULL");
-
-		///Clear the frames with camera adapter map
-		mFramesWithCameraAdapterMap.clear();
-
-		return ret;
-
-	}
-
-	int ANativeWindowDisplayAdapter::freeBuffer(void* buf)
-	{
-		LOG_FUNCTION_NAME;
-
-		int *buffers = (int *) buf;
-		status_t ret = NO_ERROR;
-
-		Mutex::Autolock lock(mLock);
-
-		if((int *)mGrallocHandleMap != buffers)
-		{
-			LOGE("CameraHal passed wrong set of buffers to free!!!");
-			if (mGrallocHandleMap != NULL)
-				delete []mGrallocHandleMap;
-			mGrallocHandleMap = NULL;
-		}
-
-
-		returnBuffersToWindow();
-
-		if ( NULL != buf )
-		{
-			delete [] buffers;
-			mGrallocHandleMap = NULL;
-		}
-
-		if( mBufferHandleMap != NULL)
-		{
-			delete [] mBufferHandleMap;
-			mBufferHandleMap = NULL;
-		}
-
-		if ( NULL != mOffsetsMap )
-		{
-			delete [] mOffsetsMap;
-			mOffsetsMap = NULL;
-		}
-
-		if( mFD != -1)
-		{
-			close(mFD);  // close duped handle
-			mFD = -1;
-		}
-
-		return NO_ERROR;
-	}
-
-
 	bool ANativeWindowDisplayAdapter::supportsExternalBuffering()
 	{
 		return false;
@@ -863,11 +778,10 @@ end:
 
 	void ANativeWindowDisplayAdapter::displayThread()
 	{
+		LOG_FUNCTION_NAME;
 		bool shouldLive = true;
 		int timeout = 0;
 		status_t ret;
-
-		LOG_FUNCTION_NAME;
 
 		while(shouldLive)
 		{
@@ -897,7 +811,7 @@ end:
 					///Get the dummy msg from the displayQ
 					if(mDisplayQ.get(&msg)!=NO_ERROR)
 					{
-						LOGE("Error in getting message from display Q");
+						LOGINFO("Error in getting message from display Q");
 						continue;
 					}
 
@@ -937,7 +851,7 @@ end:
 
 		case DisplayThread::DISPLAY_START:
 
-			LOGE("Display thread received DISPLAY_START command from Camera HAL");
+			LOGINFO("Display thread received DISPLAY_START command from Camera HAL");
 			mDisplayState = ANativeWindowDisplayAdapter::DISPLAY_STARTED;
 
 			break;
@@ -948,15 +862,15 @@ end:
 			///@bug Buffers might still be w/ display and will get displayed
 			///@remarks Ideal seqyence should be something like this
 			///mOverlay->setParameter("enabled", false);
-			LOGE("Display thread received DISPLAY_STOP command from Camera HAL");
+			LOGINFO("Display thread received DISPLAY_STOP command from Camera HAL");
 			mDisplayState = ANativeWindowDisplayAdapter::DISPLAY_STOPPED;
 
 			break;
 
 		case DisplayThread::DISPLAY_EXIT:
 
-			LOGE("Display thread received DISPLAY_EXIT command from Camera HAL.");
-			LOGE("Stopping display thread...");
+			LOGINFO("Display thread received DISPLAY_EXIT command from Camera HAL.");
+			LOGINFO("Stopping display thread...");
 			mDisplayState = ANativeWindowDisplayAdapter::DISPLAY_EXITED;
 			///Note that the SF can have pending buffers when we disable the display
 			///This is normal and the expectation is that they may not be displayed.
@@ -966,7 +880,7 @@ end:
 
 		default:
 
-			LOGE("Invalid Display Thread Command 0x%x.", msg.command);
+			LOGINFO("Invalid Display Thread Command 0x%x.", msg.command);
 			invalidCommand = true;
 
 			break;
@@ -976,153 +890,22 @@ end:
 		if ( ( msg.arg1 ) && ( !invalidCommand ) )
 		{
 
-			LOGE("+Signalling display semaphore");
+			LOGINFO("+Signalling display semaphore");
 			Semaphore &sem = *((Semaphore*)msg.arg1);
 
 			sem.Signal();
 
-			LOGE("-Signalling display semaphore");
+			LOGINFO("-Signalling display semaphore");
 		}
 
 
 		LOG_FUNCTION_NAME_EXIT;
 		return ret;
 	}
-
-/*
-	status_t ANativeWindowDisplayAdapter::PostFrame(ANativeWindowDisplayAdapter::DisplayFrame &dispFrame)
-	{
-		status_t ret = NO_ERROR;
-		uint32_t actualFramesWithDisplay = 0;
-		android_native_buffer_t *buffer = NULL;
-		GraphicBufferMapper &mapper = GraphicBufferMapper::get();
-		int i;
-
-		///@todo Do cropping based on the stabilized frame coordinates
-		///@todo Insert logic to drop frames here based on refresh rate of
-		///display or rendering rate whichever is lower
-		///Queue the buffer to overlay
-
-		if (!mGrallocHandleMap || !dispFrame.mBuffer) {
-			LOGE("NULL sent to PostFrame");
-			return -EINVAL;
-		}
-
-		for ( i = 0; i < mBufferCount; i++ )
-		{
-			if ( ((int) dispFrame.mBuffer ) == (int)mGrallocHandleMap[i] )
-			{
-				break;
-			}
-		}
-
-		if ( mDisplayState == ANativeWindowDisplayAdapter::DISPLAY_STARTED &&
-				(!mPaused ||  CameraFrame::CameraFrame::SNAPSHOT_FRAME == dispFrame.mType) &&
-				!mSuspend)
-		{
-			Mutex::Autolock lock(mLock);
-			uint32_t xOff = (dispFrame.mOffset% PAGE_SIZE);
-			uint32_t yOff = (dispFrame.mOffset / PAGE_SIZE);
-
-			// Set crop only if current x and y offsets do not match with frame offsets
-			if((mXOff!=xOff) || (mYOff!=yOff))
-			{
-				LOGE("Offset %d xOff = %d, yOff = %d", dispFrame.mOffset, xOff, yOff);
-				uint8_t bytesPerPixel;
-				///Calculate bytes per pixel based on the pixel format
-				if(strcmp(mPixelFormat, (const char *) CameraParameters::PIXEL_FORMAT_YUV422I) == 0)
-				{
-					bytesPerPixel = 2;
-				}
-				else if(strcmp(mPixelFormat, (const char *) CameraParameters::PIXEL_FORMAT_RGB565) == 0)
-				{
-					bytesPerPixel = 2;
-				}
-				else if(strcmp(mPixelFormat, (const char *) CameraParameters::PIXEL_FORMAT_YUV420SP) == 0)
-				{
-					bytesPerPixel = 1;
-				}
-				else
-				{
-					bytesPerPixel = 1;
-				}
-
-				LOGE(" crop.left = %d crop.top = %d crop.right = %d crop.bottom = %d",
-						xOff/bytesPerPixel, yOff , (xOff/bytesPerPixel)+mPreviewWidth, yOff+mPreviewHeight);
-				// We'll ignore any errors here, if the surface is
-				// already invalid, we'll know soon enough.
-				mANativeWindow->set_crop(mANativeWindow, xOff/bytesPerPixel, yOff,
-						(xOff/bytesPerPixel)+mPreviewWidth, yOff+mPreviewHeight);
-
-				///Update the current x and y offsets
-				mXOff = xOff;
-				mYOff = yOff;
-				
-				handleFrameReturn();
-			}
-
-			// unlock buffer before sending to display
-			mapper.unlock((buffer_handle_t) mGrallocHandleMap[i]);
-			ret = mANativeWindow->enqueue_buffer(mANativeWindow, mBufferHandleMap[i]);
-			if (ret != 0) {
-				LOGE("Surface::queueBuffer returned error %d", ret);
-			}
-
-			mFramesWithCameraAdapterMap.removeItem((int) dispFrame.mBuffer);
-
-
-			// HWComposer has not minimum buffer requirement. We should be able to dequeue
-			// the buffer immediately
-			TIUTILS::Message msg;
-			mDisplayQ.put(&msg);
-
-
-#if PPM_INSTRUMENTATION || PPM_INSTRUMENTATION_ABS
-
-			if ( mMeasureStandby )
-			{
-				CameraHal::PPM("Standby to first shot: Sensor Change completed - ", &mStandbyToShot);
-				mMeasureStandby = false;
-			}
-			else if (CameraFrame::CameraFrame::SNAPSHOT_FRAME == dispFrame.mType)
-			{
-				CameraHal::PPM("Shot to snapshot: ", &mStartCapture);
-				mShotToShot = true;
-			}
-			else if ( mShotToShot )
-			{
-				CameraHal::PPM("Shot to shot: ", &mStartCapture);
-				mShotToShot = false;
-			}
-#endif
-
-		}
-		else
-		{
-			Mutex::Autolock lock(mLock);
-
-			// unlock buffer before giving it up
-			mapper.unlock((buffer_handle_t) mGrallocHandleMap[i]);
-
-			// cancel buffer and dequeue another one
-			ret = mANativeWindow->cancel_buffer(mANativeWindow, mBufferHandleMap[i]);
-			if (ret != 0) {
-				LOGE("Surface::queueBuffer returned error %d", ret);
-			}
-
-			mFramesWithCameraAdapterMap.removeItem((int) dispFrame.mBuffer);
-
-			TIUTILS::Message msg;
-			mDisplayQ.put(&msg);
-			ret = NO_ERROR;
-		}
-
-		return ret;
-	}
-*/
 
 	bool ANativeWindowDisplayAdapter::handleFrameReturn() {
 		LOG_FUNCTION_NAME_EXIT;
+
 		status_t err;
 		buffer_handle_t* buf;
 		int i = 0;
@@ -1137,10 +920,10 @@ end:
 
 		err = mANativeWindow->dequeue_buffer(mANativeWindow, &buf, &stride);
 		if (err != 0) {
-			LOGE("dequeueBuffer failed: %s (%d)", strerror(-err), -err);
+			LOGINFO("dequeueBuffer failed: %s (%d)", strerror(-err), -err);
 
 			if (ENODEV == err) {
-				LOGE("Preview surface abandoned!");
+				LOGINFO("Preview surface abandoned!");
 				mANativeWindow = NULL;
 			}
 			return false;
@@ -1151,14 +934,14 @@ end:
 				break;
 		}
 
-		LOGE("HandleFrameReturn mBufferCount %d, index %d\n", mBufferCount, i);
+		LOGINFO("HandleFrameReturn mBufferCount %d, index %d\n", mBufferCount, i);
 
 		err = mANativeWindow->lock_buffer(mANativeWindow, buf);
 		if (err != 0) {
-			LOGE("lockbuffer failed: %s (%d)", strerror(-err), -err);
+			LOGINFO("lockbuffer failed: %s (%d)", strerror(-err), -err);
 
 			if (ENODEV == err) {
-				LOGE("Preview surface abandoned!");
+				LOGINFO("Preview surface abandoned!");
 				mANativeWindow = NULL;
 			}
 
@@ -1180,19 +963,19 @@ end:
 				}
 				return false;
 			}
-			LOGE("Gralloc Lock FrameReturn Error: Sleeping 15ms");
+			LOGINFO("Gralloc Lock FrameReturn Error: Sleeping 15ms");
 			usleep(15000);
 		}
 
 		mGrallocHandleMap[i] = (IMG_native_handle_t*)y_uv;
 		mFramesWithCameraAdapterMap.add((int) mGrallocHandleMap[i], i);
 
-		LOGE("handleFrameReturn: found graphic buffer %d of %d", i,
+		LOGINFO("handleFrameReturn: found graphic buffer %d of %d", i,
 				mBufferCount - 1);
 		return true;
 	}
 
-	status_t ANativeWindowDisplayAdapter::PostFrame(
+	status_t ANativeWindowDisplayAdapter::postFrame(
 			ANativeWindowDisplayAdapter::DisplayFrame &dispFrame) {
 		LOG_FUNCTION_NAME;
 
@@ -1203,10 +986,10 @@ end:
 		int index;
 
 		if (!mGrallocHandleMap || !dispFrame.mBuffer) {
-			LOGE("NULL sent to PostFrame");
+			LOGINFO("NULL sent to postFrame");
 			return -EINVAL;
 		}
-		LOGE("mPaused %d, mSuspend %d", mPaused, mSuspend);
+		LOGINFO("mPaused %d, mSuspend %d", mPaused, mSuspend);
 
 		for ( index = 0; index < mBufferCount; index++ )
 		{
@@ -1215,43 +998,24 @@ end:
 				break;
 			}
 		}
-		LOGE("PostFrame mBufferCount %d, index %d\n", mBufferCount, index);
+		LOGINFO("postFrame mBufferCount %d, index %d\n", mBufferCount, index);
 		if(index >= mBufferCount){
-			LOGE("Error!! index >= mBufferCount!\n");
+			LOGINFO("Error!! index >= mBufferCount!\n");
 			return -EINVAL;
 		}
 
-		if(true){
-			// unlock buffer before sending to display
-			// mapper.unlock((buffer_handle_t) mGrallocHandleMap[index]);
-			ret = mANativeWindow->enqueue_buffer(mANativeWindow,
-					mBufferHandleMap[index]);
-			if (ret != 0) {
-				LOGE("Surface::queueBuffer returned error %d", ret);
-			}
-
-			mFramesWithCameraAdapterMap.removeItem((int) dispFrame.mBuffer);
-
-			handleFrameReturn();
-		} else {
-			Mutex::Autolock lock(mLock);
-
-			// unlock buffer before giving it up
-			// mapper.unlock((buffer_handle_t) mGrallocHandleMap[index]);
-
-			// cancel buffer and dequeue another one
-			ret = mANativeWindow->cancel_buffer(mANativeWindow,
-					mBufferHandleMap[index]);
-			if (ret != 0) {
-				LOGE("Surface::queueBuffer returned error %d", ret);
-			}
-
-			mFramesWithCameraAdapterMap.removeItem((int) dispFrame.mBuffer);
-
-			TIUTILS::Message msg;
-			mDisplayQ.put(&msg);
-			ret = NO_ERROR;
+		// unlock buffer before sending to display
+		// mapper.unlock((buffer_handle_t) mGrallocHandleMap[index]);
+		ret = mANativeWindow->enqueue_buffer(mANativeWindow,
+				mBufferHandleMap[index]);
+		if (ret != 0) {
+			LOGINFO("Surface::queueBuffer returned error %d", ret);
 		}
+
+		mFramesWithCameraAdapterMap.removeItem((int) dispFrame.mBuffer);
+
+		handleFrameReturn();
+		ret = NO_ERROR;
 		LOG_FUNCTION_NAME_EXIT;
 
 		return ret;
@@ -1270,12 +1034,12 @@ end:
 			}
 			else
 			{
-				LOGE("Invalid Cookie in Camera Frame = %p, Cookie = %p", cameraFrame, cameraFrame->mCookie);
+				LOGINFO("Invalid Cookie in Camera Frame = %p, Cookie = %p", cameraFrame, cameraFrame->mCookie);
 			}
 		}
 		else
 		{
-			LOGE("Invalid Camera Frame = %p", cameraFrame);
+			LOGINFO("Invalid Camera Frame = %p", cameraFrame);
 		}
 		LOG_FUNCTION_NAME_EXIT;
 	}
@@ -1292,7 +1056,7 @@ end:
 		df.mLength = cameraFrame->mLength;
 		df.mWidth = cameraFrame->mWidth;
 		df.mHeight = cameraFrame->mHeight;
-		PostFrame(df);
+		postFrame(df);
 
 		LOG_FUNCTION_NAME_EXIT;
 	}

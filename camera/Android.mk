@@ -14,11 +14,8 @@ CAMERA_HAL_SRC := \
 	MemoryManager.cpp \
 	Encoder_libjpeg.cpp \
 	SensorListener.cpp  \
-	NV12_resize.c
 
 CAMERA_COMMON_SRC:= \
-	TICameraParameters.cpp \
-	CameraHalCommon.cpp \
 	BaseCameraAdapter.cpp \
 
 CAMERA_USB_SRC:= \

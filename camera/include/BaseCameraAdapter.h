@@ -192,13 +192,6 @@ protected:
         ERROR
     };
 
-#if PPM_INSTRUMENTATION || PPM_INSTRUMENTATION_ABS
-
-    struct timeval mStartFocus;
-    struct timeval mStartCapture;
-
-#endif
-
     mutable Mutex mReturnFrameLock;
 
     //Lock protecting the Adapter state

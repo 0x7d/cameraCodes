@@ -72,14 +72,6 @@ public:
     virtual int enableDisplay(int width, int height, struct timeval *refTime = NULL, S3DParameters *s3dParams = NULL);
     virtual int disableDisplay(bool cancel_buffer = true);
     virtual status_t pauseDisplay(bool pause);
-
-#if PPM_INSTRUMENTATION || PPM_INSTRUMENTATION_ABS
-
-    //Used for shot to snapshot measurement
-    virtual status_t setSnapshotTimeRef(struct timeval *refTime = NULL);
-
-#endif
-
     virtual int useBuffers(void* bufArr, int num);
     virtual bool supportsExternalBuffering();
 
@@ -87,7 +79,7 @@ public:
     virtual void* allocateBuffer(int width, int height, const char* format, int &bytes, int numBufs);
     virtual uint32_t * getOffsets() ;
     virtual int getFd() ;
-    virtual int freeBuffer(void* buf);
+    virtual int freeBuffers(void* buf);
 
     virtual int maxQueueableBuffers(unsigned int& queueable);
 
@@ -100,7 +92,7 @@ public:
     private:
     void destroy();
     bool processHalMsg();
-    status_t PostFrame(ANativeWindowDisplayAdapter::DisplayFrame &dispFrame);
+    status_t postFrame(ANativeWindowDisplayAdapter::DisplayFrame &dispFrame);
     bool handleFrameReturn();
     status_t returnBuffersToWindow();
 
@@ -175,17 +167,6 @@ private:
     uint32_t mYOff;
 
     const char *mPixelFormat;
-
-#if PPM_INSTRUMENTATION || PPM_INSTRUMENTATION_ABS
-    //Used for calculating standby to first shot
-    struct timeval mStandbyToShot;
-    bool mMeasureStandby;
-    //Used for shot to snapshot/shot calculation
-    struct timeval mStartCapture;
-    bool mShotToShot;
-
-#endif
-
 };
 
 };

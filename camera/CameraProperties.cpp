@@ -180,13 +180,13 @@ status_t CameraProperties::loadProperties()
     mCamerasSupported = CameraAdapter_Capabilities(mCameraProps, mCamerasSupported, MAX_CAMERAS_SUPPORTED);
 
     if((int)mCamerasSupported < 0) {
-        LOGE("error while getting capabilities");
+        LOGINFO("error while getting capabilities");
         ret = UNKNOWN_ERROR;
     } else if (mCamerasSupported > MAX_CAMERAS_SUPPORTED) {
-        LOGE("returned too many adapaters");
+        LOGINFO("returned too many adapaters");
         ret = UNKNOWN_ERROR;
     } else {
-        LOGE("num_cameras = %d", mCamerasSupported);
+        LOGINFO("num_cameras = %d", mCamerasSupported);
 
         for (unsigned int i = 0; i < mCamerasSupported; i++) {
             mCameraProps[i].set(CAMERA_SENSOR_INDEX, i);
@@ -207,7 +207,7 @@ status_t CameraProperties::loadProperties()
         }
     }
 
-    LOGE("mCamerasSupported = %d", mCamerasSupported);
+    LOGINFO("mCamerasSupported = %d", mCamerasSupported);
     LOG_FUNCTION_NAME_EXIT;
     return ret;
 }
@@ -266,7 +266,7 @@ void CameraProperties::Properties::dump()
 {
     for (size_t i = 0; i < mProperties->size(); i++)
     {
-        LOGE("%s = %s\n",
+        LOGINFO("%s = %s\n",
                         mProperties->keyAt(i).string(),
                         mProperties->valueAt(i).string());
     }

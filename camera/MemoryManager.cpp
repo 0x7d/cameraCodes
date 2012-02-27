@@ -16,11 +16,10 @@
 
 
 
-#define LOG_TAG "CameraHAL"
+#define LOG_TAG "MemoryManager"
 
 
 #include "CameraHal.h"
-#include "TICameraParameters.h"
 
 extern "C" {
 
@@ -52,7 +51,7 @@ void* MemoryManager::allocateBuffer(int width, int height, const char* format, i
         mIonFd = ion_open();
         if(mIonFd == 0)
             {
-            LOGE("ion_open failed!!!");
+            LOGINFO("ion_open failed!!!");
             return NULL;
             }
         }
@@ -65,7 +64,7 @@ void* MemoryManager::allocateBuffer(int width, int height, const char* format, i
     uint32_t *bufsArr = new uint32_t [numArrayEntriesC];
     if(!bufsArr)
         {
-        LOGE("Allocation failed when creating buffers array of %d uint32_t elements", numArrayEntriesC);
+        LOGINFO("Allocation failed when creating buffers array of %d uint32_t elements", numArrayEntriesC);
         LOG_FUNCTION_NAME_EXIT;
         return NULL;
         }
@@ -86,15 +85,15 @@ void* MemoryManager::allocateBuffer(int width, int height, const char* format, i
             int ret = ion_alloc(mIonFd, bytes, 0, 1 << ION_HEAP_TYPE_CARVEOUT, &handle);
             if(ret < 0)
                 {
-                LOGE("ion_alloc resulted in error %d", ret);
+                LOGINFO("ion_alloc resulted in error %d", ret);
                 goto error;
                 }
 
-            LOGE("Before mapping, handle = %x, nSize = %d", handle, bytes);
+            LOGINFO("Before mapping, handle = %x, nSize = %d", handle, bytes);
             if ((ret = ion_map(mIonFd, handle, bytes, PROT_READ | PROT_WRITE, MAP_SHARED, 0,
                           (unsigned char**)&bufsArr[i], &mmap_fd)) < 0)
                 {
-                LOGE("Userspace mapping of ION buffers returned error %d", ret);
+                LOGINFO("Userspace mapping of ION buffers returned error %d", ret);
                 ion_free(mIonFd, handle);
                 goto error;
                 }
@@ -114,8 +113,8 @@ void* MemoryManager::allocateBuffer(int width, int height, const char* format, i
         return (void*)bufsArr;
 
 error:
-    LOGE("Freeing buffers already allocated after error occurred");
-    freeBuffer(bufsArr);
+    LOGINFO("Freeing buffers already allocated after error occurred");
+    freeBuffers(bufsArr);
 
     if ( NULL != mErrorNotifier.get() )
         {
@@ -146,7 +145,7 @@ int MemoryManager::getFd()
     return -1;
 }
 
-int MemoryManager::freeBuffer(void* buf)
+int MemoryManager::freeBuffers(void* buf)
 {
     status_t ret = NO_ERROR;
     LOG_FUNCTION_NAME;
@@ -155,7 +154,7 @@ int MemoryManager::freeBuffer(void* buf)
 
     if(!bufEntry)
         {
-        LOGE("NULL pointer passed to freebuffer");
+        LOGINFO("NULL pointer passed to freebuffer");
         LOG_FUNCTION_NAME_EXIT;
         return BAD_VALUE;
         }
@@ -174,7 +173,7 @@ int MemoryManager::freeBuffer(void* buf)
             }
         else
             {
-            LOGE("Not a valid Memory Manager buffer");
+            LOGINFO("Not a valid Memory Manager buffer");
             }
         }
 
@@ -202,7 +201,7 @@ status_t MemoryManager::setErrorHandler(ErrorNotifier *errorNotifier)
 
     if ( NULL == errorNotifier )
         {
-        LOGE("Invalid Error Notifier reference");
+        LOGINFO("Invalid Error Notifier reference");
         ret = -EINVAL;
         }
 

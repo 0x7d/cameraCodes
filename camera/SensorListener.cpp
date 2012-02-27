@@ -54,8 +54,8 @@ static int sensor_events_listener(int fd, int events, void* data)
                 float radius = 0;
                 int tilt = 0, orient = 0;
 
-                LOGE("ACCELEROMETER EVENT");
-                LOGE(" azimuth = %f pitch = %f roll = %f",
+                LOGINFO("ACCELEROMETER EVENT");
+                LOGINFO(" azimuth = %f pitch = %f roll = %f",
                              sen_events[i].vector.azimuth,
                              sen_events[i].vector.pitch,
                              sen_events[i].vector.roll);
@@ -79,15 +79,15 @@ static int sensor_events_listener(int fd, int events, void* data)
                     orient = 0;
                 }
                 listener->handleOrientation(orient, tilt);
-                LOGE(" tilt = %d orientation = %d", tilt, orient);
+                LOGINFO(" tilt = %d orientation = %d", tilt, orient);
             } else if (sen_events[i].type == Sensor::TYPE_GYROSCOPE) {
-                LOGE("GYROSCOPE EVENT");
+                LOGINFO("GYROSCOPE EVENT");
             }
         }
     }
 
     if (num_sensors < 0 && num_sensors != -EAGAIN) {
-        LOGE("reading events failed: %s", strerror(-num_sensors));
+        LOGINFO("reading events failed: %s", strerror(-num_sensors));
     }
 
     return 1;
@@ -108,7 +108,7 @@ SensorListener::SensorListener() {
 SensorListener::~SensorListener() {
     LOG_FUNCTION_NAME;
 
-    LOGE("Kill looper thread");
+    LOGINFO("Kill looper thread");
     if (mSensorLooperThread.get()) {
         // 1. Request exit
         // 2. Wake up looper which should be polling for an event
@@ -120,13 +120,13 @@ SensorListener::~SensorListener() {
         mSensorLooperThread = NULL;
     }
 
-    LOGE("Kill looper");
+    LOGINFO("Kill looper");
     if (mLooper.get()) {
         mLooper->removeFd(mSensorEventQueue->getFd());
         mLooper.clear();
         mLooper = NULL;
     }
-    LOGE("SensorListener destroyed");
+    LOGINFO("SensorListener destroyed");
 
     LOG_FUNCTION_NAME_EXIT;
 }
@@ -141,7 +141,7 @@ status_t SensorListener::initialize() {
 
     mSensorEventQueue = mgr.createEventQueue();
     if (mSensorEventQueue == NULL) {
-        LOGE("createEventQueue returned NULL");
+        LOGINFO("createEventQueue returned NULL");
         ret = NO_INIT;
         goto out;
     }
@@ -153,16 +153,16 @@ status_t SensorListener::initialize() {
             mSensorLooperThread = new SensorLooperThread(mLooper.get());
 
     if (mSensorLooperThread.get() == NULL) {
-        LOGE("Couldn't create sensor looper thread");
+        LOGINFO("Couldn't create sensor looper thread");
         ret = NO_MEMORY;
         goto out;
     }
 
     ret = mSensorLooperThread->run("sensor looper thread", PRIORITY_URGENT_DISPLAY);
     if (ret == INVALID_OPERATION){
-        LOGE("thread already running ?!?");
+        LOGINFO("thread already running ?!?");
     } else if (ret != NO_ERROR) {
-        LOGE("couldn't run thread");
+        LOGINFO("couldn't run thread");
         goto out;
     }
 
@@ -204,7 +204,7 @@ void SensorListener::enableSensor(sensor_type_t type) {
 
     if ((type & SENSOR_ORIENTATION) && !(sensorsEnabled & SENSOR_ORIENTATION)) {
         sensor = mgr.getDefaultSensor(Sensor::TYPE_ACCELEROMETER);
-        LOGE("orientation = %p (%s)", sensor, sensor->getName().string());
+        LOGINFO("orientation = %p (%s)", sensor, sensor->getName().string());
         mSensorEventQueue->enableSensor(sensor);
         mSensorEventQueue->setEventRate(sensor, ms2ns(100));
         sensorsEnabled |= SENSOR_ORIENTATION;
@@ -223,7 +223,7 @@ void SensorListener::disableSensor(sensor_type_t type) {
 
     if ((type & SENSOR_ORIENTATION) && (sensorsEnabled & SENSOR_ORIENTATION)) {
         sensor = mgr.getDefaultSensor(Sensor::TYPE_ACCELEROMETER);
-        LOGE("orientation = %p (%s)", sensor, sensor->getName().string());
+        LOGINFO("orientation = %p (%s)", sensor, sensor->getName().string());
         mSensorEventQueue->disableSensor(sensor);
         sensorsEnabled &= ~SENSOR_ORIENTATION;
     }

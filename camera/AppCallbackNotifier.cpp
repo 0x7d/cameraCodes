@@ -28,7 +28,6 @@
 #include <MetadataBufferType.h>
 #include <ui/GraphicBuffer.h>
 #include <ui/GraphicBufferMapper.h>
-#include "NV12_resize.h"
 
 namespace android {
 
@@ -53,8 +52,8 @@ namespace android {
 
 		unsigned int *y_uv = (unsigned int *)src;
 
-		LOGE("copy2Dto1D() y= %p ; uv=%p.",y_uv[0], y_uv[1]);
-		LOGE("pixelFormat,= %d; offset=%d",*pixelFormat,offset);
+		LOGINFO("copy2Dto1D() y= %p ; uv=%p.",y_uv[0], y_uv[1]);
+		LOGINFO("pixelFormat,= %d; offset=%d",*pixelFormat,offset);
 
 		if (pixelFormat!=NULL) {
 			if (strcmp(pixelFormat, CameraParameters::PIXEL_FORMAT_YUV422I) == 0) {
@@ -244,7 +243,7 @@ namespace android {
 			if (!main_jpeg) {
 				goto exit;
 			}
-			LOGE("cookie1 %p, cookie2 %p",cookie1, cookie2);
+			LOGINFO("cookie1 %p, cookie2 %p",cookie1, cookie2);
 			
 			encoded_mem = (camera_memory_t*) cookie1;
 			main_param = (Encoder_libjpeg::params *) main_jpeg;
@@ -275,7 +274,7 @@ namespace android {
 					delete exif;
 					cookie2 = NULL;
 				} else {
-					LOGE("Copy data to picture\n");
+					LOGINFO("Copy data to picture\n");
 					picture = mRequestMemory(-1, jpeg_size, 1, NULL);
 					if (picture && picture->data) {
 						memcpy(picture->data, encoded_mem->data, jpeg_size);
@@ -303,7 +302,7 @@ namespace android {
 			else
 #endif
 			{
-				LOGE("Send callback to application\n");
+				LOGINFO("Send callback to application\n");
 				mDataCb(CAMERA_MSG_COMPRESSED_IMAGE, picture, 0, NULL, mCallbackCookie);
 			}
 		}
@@ -360,7 +359,7 @@ exit:
 		mNotificationThread = new NotificationThread(this);
 		if(!mNotificationThread.get())
 		{
-			LOGE("Couldn't create Notification thread");
+			LOGINFO("Couldn't create Notification thread");
 			return NO_MEMORY;
 		}
 
@@ -368,7 +367,7 @@ exit:
 		status_t ret = mNotificationThread->run("NotificationThread", PRIORITY_URGENT_DISPLAY);
 		if(ret!=NO_ERROR)
 		{
-			LOGE("Couldn't run NotificationThread");
+			LOGINFO("Couldn't run NotificationThread");
 			mNotificationThread.clear();
 			return ret;
 		}
@@ -424,7 +423,7 @@ exit:
 	{
 		LOG_FUNCTION_NAME;
 
-		LOGE("AppCallbackNotifier received error %d", error);
+		LOGINFO("AppCallbackNotifier received error %d", error);
 
 		// If it is a fatal error abort here!
 		if((error == CAMERA_ERROR_FATAL) || (error == CAMERA_ERROR_HARD)) {
@@ -439,7 +438,7 @@ exit:
 				( NULL != mNotifyCb ) &&
 				( mCameraHal->msgTypeEnabled(CAMERA_MSG_ERROR) ) )
 		{
-			LOGE("AppCallbackNotifier mNotifyCb %d", error);
+			LOGINFO("AppCallbackNotifier mNotifyCb %d", error);
 			mNotifyCb(CAMERA_MSG_ERROR, CAMERA_ERROR_UNKNOWN, 0, mCallbackCookie);
 		}
 
@@ -453,32 +452,32 @@ exit:
 
 		LOG_FUNCTION_NAME;
 
-		LOGE("Notification Thread waiting for message");
+		LOGINFO("Notification Thread waiting for message");
 		ret = TIUTILS::MessageQueue::waitForMsg(&mNotificationThread->msgQ(),
 				&mEventQ,
 				&mFrameQ,
 				AppCallbackNotifier::NOTIFIER_TIMEOUT);
 
-		LOGE("Notification Thread received message");
+		LOGINFO("Notification Thread received message");
 
 		if (mNotificationThread->msgQ().hasMsg()) {
 			///Received a message from CameraHal, process it
-			LOGE("Notification Thread received message from Camera HAL");
+			LOGINFO("Notification Thread received message from Camera HAL");
 			shouldLive = processMessage();
 			if(!shouldLive) {
-				LOGE("Notification Thread exiting.");
+				LOGINFO("Notification Thread exiting.");
 			}
 		}
 
 		if(mEventQ.hasMsg()) {
 			///Received an event from one of the event providers
-			LOGE("Notification Thread received an event from event provider (CameraAdapter)");
+			LOGINFO("Notification Thread received an event from event provider (CameraAdapter)");
 			notifyEvent();
 		}
 
 		if(mFrameQ.hasMsg()) {
 			///Received a frame from one of the frame providers
-			LOGE("Notification Thread received a frame from frame provider (CameraAdapter)");
+			LOGINFO("Notification Thread received a frame from frame provider (CameraAdapter)");
 			notifyFrame();
 		}
 
@@ -511,7 +510,7 @@ exit:
 
 			if ( NULL == evt )
 			{
-				LOGE("Invalid CameraHalEvent");
+				LOGINFO("Invalid CameraHalEvent");
 				return;
 			}
 
@@ -661,14 +660,14 @@ exit:
 			}
 
 			if (!mPreviewMemory || !frame->mBuffer) {
-				LOGE("Error! One of the buffer is NULL");
+				LOGINFO("Error! One of the buffer is NULL");
 				goto exit;
 			}
 
 
 			dest = (void*) mPreviewBufs[mPreviewBufCount];
 
-			LOGE("%d:copy2Dto1D(%p, %p, %d, %d, %d, %d, %d,%s)",
+			LOGINFO("%d:copy2Dto1D(%p, %p, %d, %d, %d, %d, %d,%s)",
 					__LINE__,
 					0,
 					frame->mBuffer,
@@ -689,7 +688,7 @@ exit:
 					}
 				} else {
 					if ((NULL == frame->mYuv[0]) || (NULL == frame->mYuv[1])){
-						LOGE("Error! One of the YUV Pointer is NULL");
+						LOGINFO("Error! One of the YUV Pointer is NULL");
 						goto exit;
 					}
 					else{
@@ -725,7 +724,7 @@ exit:
 		LOG_FUNCTION_NAME;
 
 		if ( NULL == mRequestMemory ) {
-			LOGE("Can't allocate memory for dummy raw callback!");
+			LOGINFO("Can't allocate memory for dummy raw callback!");
 			return NO_INIT;
 		}
 
@@ -737,7 +736,7 @@ exit:
 				camera_memory_t *dummyRaw = mRequestMemory(-1, 1, 1, NULL);
 
 				if ( NULL == dummyRaw ) {
-					LOGE("Dummy raw buffer allocation failed!");
+					LOGINFO("Dummy raw buffer allocation failed!");
 					return NO_MEMORY;
 				}
 
@@ -778,7 +777,7 @@ exit:
 		bool ret = true;
 
 		frame = NULL;
-		LOGE("command %d, mDataCb %x, mCameraHal %x\n",msg.command, mDataCb, mCameraHal);
+		LOGINFO("command %d, mDataCb %x, mCameraHal %x\n",msg.command, mDataCb, mCameraHal);
 
 		switch(msg.command)
 		{
@@ -815,7 +814,7 @@ exit:
 					(NULL != mDataCb) &&
 					(CameraFrame::ENCODE_RAW_YUV422I_TO_JPEG & frame->mQuirks) )
 			{
-				LOGE("notifyFrame CameraFrame::IMAGE_FRAME\n");
+				LOGINFO("notifyFrame CameraFrame::IMAGE_FRAME\n");
 				int encode_quality = 100, tn_quality = 100;
 				int tn_width, tn_height;
 				unsigned int current_snapshot = 0;
@@ -944,53 +943,11 @@ exit:
 
 						if( (NULL == videoMedatadaBufferMemory) || (NULL == videoMetadataBuffer) || (NULL == frame->mBuffer) )
 						{
-							LOGE("Error! One of the video buffers is NULL");
+							LOGINFO("Error! One of the video buffers is NULL");
 							break;
 						}
 
-						if ( mUseVideoBuffers )
-						{
-							int vBuf = mVideoMap.valueFor((uint32_t) frame->mBuffer);
-							GraphicBufferMapper &mapper = GraphicBufferMapper::get();
-							Rect bounds;
-							bounds.left = 0;
-							bounds.top = 0;
-							bounds.right = mVideoWidth;
-							bounds.bottom = mVideoHeight;
-
-							void *y_uv[2];
-							mapper.lock((buffer_handle_t)vBuf, CAMHAL_GRALLOC_USAGE, bounds, y_uv);
-
-							structConvImage input =  {frame->mWidth,
-								frame->mHeight,
-								4096,
-								IC_FORMAT_YCbCr420_lp,
-								(mmByte *)frame->mYuv[0],
-								(mmByte *)frame->mYuv[1],
-								frame->mOffset};
-
-							structConvImage output = {mVideoWidth,
-								mVideoHeight,
-								4096,
-								IC_FORMAT_YCbCr420_lp,
-								(mmByte *)y_uv[0],
-								(mmByte *)y_uv[1],
-								0};
-
-							VT_resizeFrame_Video_opt2_lp(&input, &output, NULL, 0);
-							mapper.unlock((buffer_handle_t)vBuf);
-							videoMetadataBuffer->metadataBufferType = (int) kMetadataBufferTypeCameraSource;
-							videoMetadataBuffer->handle = (void *)vBuf;
-							videoMetadataBuffer->offset = 0;
-						}
-						else
-						{
-							videoMetadataBuffer->metadataBufferType = (int) kMetadataBufferTypeCameraSource;
-							videoMetadataBuffer->handle = frame->mBuffer;
-							videoMetadataBuffer->offset = frame->mOffset;
-						}
-
-						LOGE("mDataCbTimestamp : frame->mBuffer=0x%x, videoMetadataBuffer=0x%x, videoMedatadaBufferMemory=0x%x",
+						LOGINFO("mDataCbTimestamp : frame->mBuffer=0x%x, videoMetadataBuffer=0x%x, videoMedatadaBufferMemory=0x%x",
 								frame->mBuffer, videoMetadataBuffer, videoMedatadaBufferMemory);
 
 						mDataCbTimestamp(frame->mTimestamp, CAMERA_MSG_VIDEO_FRAME,
@@ -1002,7 +959,7 @@ exit:
 						camera_memory_t* fakebuf = mRequestMemory(-1, 4, 1, NULL);
 						if( (NULL == fakebuf) || ( NULL == fakebuf->data) || ( NULL == frame->mBuffer))
 						{
-							LOGE("Error! One of the video buffers is NULL");
+							LOGINFO("Error! One of the video buffers is NULL");
 							break;
 						}
 
@@ -1046,7 +1003,7 @@ exit:
 			} else {
 				mFrameProvider->returnFrame(frame->mBuffer,
 						( CameraFrame::FrameType ) frame->mFrameType);
-				LOGE("Frame type 0x%x is still unsupported!", frame->mFrameType);
+				LOGINFO("Frame type 0x%x is still unsupported!", frame->mFrameType);
 			}
 
 			break;
@@ -1094,7 +1051,7 @@ exit:
 			}
 			else
 			{
-				LOGE("Not enough resources to allocate CameraFrame");
+				LOGINFO("Not enough resources to allocate CameraFrame");
 			}
 
 		}
@@ -1150,7 +1107,7 @@ exit:
 			}
 			else
 			{
-				LOGE("Not enough resources to allocate CameraHalEvent");
+				LOGINFO("Not enough resources to allocate CameraHalEvent");
 			}
 
 		}
@@ -1166,23 +1123,23 @@ exit:
 
 		LOG_FUNCTION_NAME;
 
-		LOGE("+Msg get...");
+		LOGINFO("+Msg get...");
 		mNotificationThread->msgQ().get(&msg);
-		LOGE("-Msg get...");
+		LOGINFO("-Msg get...");
 		bool ret = true;
 
 		switch(msg.command)
 		{
 		case NotificationThread::NOTIFIER_EXIT:
 			{
-				LOGE("Received NOTIFIER_EXIT command from Camera HAL");
+				LOGINFO("Received NOTIFIER_EXIT command from Camera HAL");
 				mNotifierState = AppCallbackNotifier::NOTIFIER_EXITED;
 				ret = false;
 				break;
 			}
 		default:
 			{
-				LOGE("Error: ProcessMsg() command from Camera HAL");
+				LOGINFO("Error: ProcessMsg() command from Camera HAL");
 				break;
 			}
 		}
@@ -1231,7 +1188,7 @@ exit:
 		if ( NULL != mEventProvider )
 		{
 			///Deleting the event provider
-			LOGE("Stopping Event Provider");
+			LOGINFO("Stopping Event Provider");
 			delete mEventProvider;
 			mEventProvider = NULL;
 		}
@@ -1239,7 +1196,7 @@ exit:
 		if ( NULL != mFrameProvider )
 		{
 			///Deleting the frame provider
-			LOGE("Stopping Frame Provider");
+			LOGINFO("Stopping Frame Provider");
 			delete mFrameProvider;
 			mFrameProvider = NULL;
 		}
@@ -1263,7 +1220,7 @@ exit:
 				if(NULL != videoMedatadaBufferMemory)
 				{
 					videoMedatadaBufferMemory->release(videoMedatadaBufferMemory);
-					LOGE("Released  videoMedatadaBufferMemory=0x%x", videoMedatadaBufferMemory);
+					LOGINFO("Released  videoMedatadaBufferMemory=0x%x", videoMedatadaBufferMemory);
 				}
 			}
 
@@ -1289,7 +1246,7 @@ exit:
 		mEventProvider = new EventProvider(eventNotifier, this, eventCallbackRelay);
 		if ( NULL == mEventProvider )
 		{
-			LOGE("Error in creating EventProvider");
+			LOGINFO("Error in creating EventProvider");
 		}
 		else
 		{
@@ -1307,7 +1264,7 @@ exit:
 		mFrameProvider = new FrameProvider(frameNotifier, this, frameCallbackRelay);
 		if ( NULL == mFrameProvider )
 		{
-			LOGE("Error in creating FrameProvider");
+			LOGINFO("Error in creating FrameProvider");
 		}
 		else
 		{
@@ -1333,13 +1290,13 @@ exit:
 
 		if ( NULL == mFrameProvider )
 		{
-			LOGE("Trying to start video recording without FrameProvider");
+			LOGINFO("Trying to start video recording without FrameProvider");
 			return -EINVAL;
 		}
 
 		if ( mPreviewing )
 		{
-			LOGE("+Already previewing");
+			LOGINFO("+Already previewing");
 			return NO_INIT;
 		}
 
@@ -1443,7 +1400,7 @@ exit:
 
 		if ( NULL == mFrameProvider )
 		{
-			LOGE("Trying to stop preview callbacks without FrameProvider");
+			LOGINFO("Trying to stop preview callbacks without FrameProvider");
 			return -EINVAL;
 		}
 
@@ -1485,7 +1442,7 @@ exit:
 
 		if ( NULL == mFrameProvider )
 		{
-			LOGE("Trying to start video recording without FrameProvider");
+			LOGINFO("Trying to start video recording without FrameProvider");
 			ret = -1;
 		}
 
@@ -1519,7 +1476,7 @@ exit:
 
 			if(NULL == buffers)
 			{
-				LOGE("Error! Video buffers are NULL");
+				LOGINFO("Error! Video buffers are NULL");
 				return BAD_VALUE;
 			}
 			bufArr = (uint32_t *) buffers;
@@ -1529,20 +1486,20 @@ exit:
 				videoMedatadaBufferMemory = mRequestMemory(-1, sizeof(video_metadata_t), 1, NULL);
 				if((NULL == videoMedatadaBufferMemory) || (NULL == videoMedatadaBufferMemory->data))
 				{
-					LOGE("Error! Could not allocate memory for Video Metadata Buffers");
+					LOGINFO("Error! Could not allocate memory for Video Metadata Buffers");
 					return NO_MEMORY;
 				}
 
 				mVideoMetadataBufferMemoryMap.add(bufArr[i], (uint32_t)(videoMedatadaBufferMemory));
 				mVideoMetadataBufferReverseMap.add((uint32_t)(videoMedatadaBufferMemory->data), bufArr[i]);
-				LOGE("bufArr[%d]=0x%x, videoMedatadaBufferMemory=0x%x, videoMedatadaBufferMemory->data=0x%x",
+				LOGINFO("bufArr[%d]=0x%x, videoMedatadaBufferMemory=0x%x, videoMedatadaBufferMemory->data=0x%x",
 						i, bufArr[i], videoMedatadaBufferMemory, videoMedatadaBufferMemory->data);
 
 				if (vidBufs != NULL)
 				{
 					uint32_t *vBufArr = (uint32_t *) vidBufs;
 					mVideoMap.add(bufArr[i], vBufArr[i]);
-					LOGE("bufArr[%d]=0x%x, vBuffArr[%d]=0x%x", i, bufArr[i], i, vBufArr[i]);
+					LOGINFO("bufArr[%d]=0x%x, vBuffArr[%d]=0x%x", i, bufArr[i], i, vBufArr[i]);
 				}
 			}
 		}
@@ -1563,7 +1520,7 @@ exit:
 
 		if ( NULL == mFrameProvider )
 		{
-			LOGE("Trying to stop video recording without FrameProvider");
+			LOGINFO("Trying to stop video recording without FrameProvider");
 			ret = -1;
 		}
 
@@ -1595,13 +1552,13 @@ exit:
 		LOG_FUNCTION_NAME;
 		if ( NULL == mFrameProvider )
 		{
-			LOGE("Trying to stop video recording without FrameProvider");
+			LOGINFO("Trying to stop video recording without FrameProvider");
 			ret = -1;
 		}
 
 		if ( NULL == mem )
 		{
-			LOGE("Video Frame released is invalid");
+			LOGINFO("Video Frame released is invalid");
 			ret = -1;
 		}
 
@@ -1614,7 +1571,7 @@ exit:
 		{
 			video_metadata_t *videoMetadataBuffer = (video_metadata_t *) mem ;
 			frame = (void*) mVideoMetadataBufferReverseMap.valueFor((uint32_t) videoMetadataBuffer);
-			LOGE("Releasing frame with videoMetadataBuffer=0x%x, videoMetadataBuffer->handle=0x%x & frame handle=0x%x\n",
+			LOGINFO("Releasing frame with videoMetadataBuffer=0x%x, videoMetadataBuffer->handle=0x%x & frame handle=0x%x\n",
 					videoMetadataBuffer, videoMetadataBuffer->handle, frame);
 		}
 		else
@@ -1656,7 +1613,7 @@ exit:
 		LOG_FUNCTION_NAME;
 		if(mNotifierState==AppCallbackNotifier::NOTIFIER_STARTED)
 		{
-			LOGE("AppCallbackNotifier already running");
+			LOGINFO("AppCallbackNotifier already running");
 			LOG_FUNCTION_NAME_EXIT;
 			return ALREADY_EXISTS;
 		}
@@ -1666,7 +1623,7 @@ exit:
 		if(!mFrameProvider)
 		{
 			///AppCallbackNotifier not properly initialized
-			LOGE("AppCallbackNotifier not properly initialized - Frame provider is NULL");
+			LOGINFO("AppCallbackNotifier not properly initialized - Frame provider is NULL");
 			LOG_FUNCTION_NAME_EXIT;
 			return NO_INIT;
 		}
@@ -1675,14 +1632,14 @@ exit:
 		///@todo Modify here when there is an array of event providers
 		if(!mEventProvider)
 		{
-			LOGE("AppCallbackNotifier not properly initialized - Event provider is NULL");
+			LOGINFO("AppCallbackNotifier not properly initialized - Event provider is NULL");
 			LOG_FUNCTION_NAME_EXIT;
 			///AppCallbackNotifier not properly initialized
 			return NO_INIT;
 		}
 
 		mNotifierState = AppCallbackNotifier::NOTIFIER_STARTED;
-		LOGE(" --> AppCallbackNotifier NOTIFIER_STARTED \n");
+		LOGINFO(" --> AppCallbackNotifier NOTIFIER_STARTED \n");
 
 		gEncoderQueue.clear();
 
@@ -1698,7 +1655,7 @@ exit:
 
 		if(mNotifierState!=AppCallbackNotifier::NOTIFIER_STARTED)
 		{
-			LOGE("AppCallbackNotifier already in stopped state");
+			LOGINFO("AppCallbackNotifier already in stopped state");
 			LOG_FUNCTION_NAME_EXIT;
 			return ALREADY_EXISTS;
 		}
@@ -1706,7 +1663,7 @@ exit:
 			Mutex::Autolock lock(mLock);
 
 			mNotifierState = AppCallbackNotifier::NOTIFIER_STOPPED;
-			LOGE(" --> AppCallbackNotifier NOTIFIER_STOPPED \n");
+			LOGINFO(" --> AppCallbackNotifier NOTIFIER_STOPPED \n");
 		}
 
 		while(!gEncoderQueue.isEmpty()) {

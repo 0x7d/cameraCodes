@@ -152,37 +152,37 @@ namespace android {
 		}
 
 		if ( ( CameraArea::WEIGHT_MIN > weight ) ||  ( CameraArea::WEIGHT_MAX < weight ) ) {
-			LOGE("Camera area weight is invalid %d", weight);
+			LOGINFO("Camera area weight is invalid %d", weight);
 			return -EINVAL;
 		}
 
 		if ( ( CameraArea::TOP > top ) || ( CameraArea::BOTTOM < top ) ) {
-			LOGE("Camera area top coordinate is invalid %d", top );
+			LOGINFO("Camera area top coordinate is invalid %d", top );
 			return -EINVAL;
 		}
 
 		if ( ( CameraArea::TOP > bottom ) || ( CameraArea::BOTTOM < bottom ) ) {
-			LOGE("Camera area bottom coordinate is invalid %d", bottom );
+			LOGINFO("Camera area bottom coordinate is invalid %d", bottom );
 			return -EINVAL;
 		}
 
 		if ( ( CameraArea::LEFT > left ) || ( CameraArea::RIGHT < left ) ) {
-			LOGE("Camera area left coordinate is invalid %d", left );
+			LOGINFO("Camera area left coordinate is invalid %d", left );
 			return -EINVAL;
 		}
 
 		if ( ( CameraArea::LEFT > right ) || ( CameraArea::RIGHT < right ) ) {
-			LOGE("Camera area right coordinate is invalid %d", right );
+			LOGINFO("Camera area right coordinate is invalid %d", right );
 			return -EINVAL;
 		}
 
 		if ( left >= right ) {
-			LOGE("Camera area left larger than right");
+			LOGINFO("Camera area left larger than right");
 			return -EINVAL;
 		}
 
 		if ( top >= bottom ) {
-			LOGE("Camera area top larger than bottom");
+			LOGINFO("Camera area top larger than bottom");
 			return -EINVAL;
 		}
 
@@ -229,7 +229,7 @@ namespace android {
 			pStart = pArea;
 			if ( NULL == pStart )
 			{
-				LOGE("Parsing of the left area coordinate failed!");
+				LOGINFO("Parsing of the left area coordinate failed!");
 				ret = -EINVAL;
 				break;
 			}
@@ -240,7 +240,7 @@ namespace android {
 
 			if ( sep != *pEnd )
 			{
-				LOGE("Parsing of the top area coordinate failed!");
+				LOGINFO("Parsing of the top area coordinate failed!");
 				ret = -EINVAL;
 				break;
 			}
@@ -251,7 +251,7 @@ namespace android {
 
 			if ( sep != *pEnd )
 			{
-				LOGE("Parsing of the right area coordinate failed!");
+				LOGINFO("Parsing of the right area coordinate failed!");
 				ret = -EINVAL;
 				break;
 			}
@@ -262,7 +262,7 @@ namespace android {
 
 			if ( sep != *pEnd )
 			{
-				LOGE("Parsing of the bottom area coordinate failed!");
+				LOGINFO("Parsing of the bottom area coordinate failed!");
 				ret = -EINVAL;
 				break;
 			}
@@ -273,7 +273,7 @@ namespace android {
 
 			if ( sep != *pEnd )
 			{
-				LOGE("Parsing of the weight area coordinate failed!");
+				LOGINFO("Parsing of the weight area coordinate failed!");
 				ret = -EINVAL;
 				break;
 			}
@@ -284,7 +284,7 @@ namespace android {
 
 			if ( endToken != *pEnd )
 			{
-				LOGE("Malformed area!");
+				LOGINFO("Malformed area!");
 				ret = -EINVAL;
 				break;
 			}
@@ -295,7 +295,7 @@ namespace android {
 			}
 
 			currentArea = new CameraArea(top, left, bottom, right, weight);
-			LOGE("Area parsed [%dx%d, %dx%d] %d",
+			LOGINFO("Area parsed [%dx%d, %dx%d] %d",
 					( int ) top,
 					( int ) left,
 					( int ) bottom,
