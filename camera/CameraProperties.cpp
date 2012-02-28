@@ -126,9 +126,29 @@ const char CameraProperties::PARAMS_DELIMITER []= ",";
 
 
 extern "C" int CameraAdapter_Capabilities(CameraProperties::Properties* properties_array,
-                                          const unsigned int starting_camera,
-                                          const unsigned int max_camera);
+		const unsigned int starting_camera,
+		const unsigned int max_camera) {
+	int num_cameras_supported = 0;
+	CameraProperties::Properties* properties = NULL;
 
+	LOG_FUNCTION_NAME;
+
+	if(!properties_array)
+	{
+		return -EINVAL;
+	}
+
+	// TODO: Need to tell camera properties what other cameras we can support
+	if (starting_camera + num_cameras_supported < max_camera) {
+		num_cameras_supported++;
+		properties = properties_array + starting_camera;
+		properties->set(CameraProperties::CAMERA_NAME, "USBCamera");
+	}
+
+	LOG_FUNCTION_NAME_EXIT;
+
+	return num_cameras_supported;
+}
 
 CameraProperties::CameraProperties()
 {
@@ -202,7 +222,7 @@ status_t CameraProperties::loadProperties()
 			mCameraProps[i].set(CameraParameters::KEY_SUPPORTED_PREVIEW_SIZES, "640x480");
 
 			mCameraProps[i].set(CameraProperties::REQUIRED_PREVIEW_BUFS, 8);
-			
+
             mCameraProps[i].dump();
         }
     }

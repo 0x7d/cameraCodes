@@ -26,6 +26,7 @@
 
 #include "CameraHal.h"
 #include "ANativeWindowDisplayAdapter.h"
+#include "V4LCameraAdapter.h"
 #include "CameraProperties.h"
 #include <cutils/properties.h>
 
@@ -57,10 +58,7 @@ namespace android {
 			camera = (CameraHal*) cookie;
 			camera->onOrientationEvent(orientation, tilt);
 		}
-
 	}
-
-
 
 	void endImageCapture( void *userData)
 	{
@@ -240,7 +238,6 @@ namespace android {
 */
 	int CameraHal::setParameters(const char* parameters)
 	{
-
 		LOG_FUNCTION_NAME;
 
 		CameraParameters params;
@@ -270,8 +267,6 @@ namespace android {
 
 		LOG_FUNCTION_NAME_EXIT;
 		// TODO: Wether need to set parameters here need to discuss later!
-
-		
 
 		int w, h;
 		int w_orig, h_orig;
@@ -776,10 +771,9 @@ namespace android {
 	status_t CameraHal::allocPreviewBufs(int width, int height, const char* previewFormat,
 			unsigned int buffercount, unsigned int &max_queueable)
 	{
-		status_t ret = NO_ERROR;
-
 		LOG_FUNCTION_NAME;
 
+		status_t ret = NO_ERROR;
 		if(mDisplayAdapter.get() == NULL)
 		{
 			// Memory allocation of preview buffers is now placed in gralloc
@@ -817,13 +811,10 @@ namespace android {
 			if (ret != NO_ERROR) {
 				return ret;
 			}
-
 		}
 
 		LOG_FUNCTION_NAME_EXIT;
-
 		return ret;
-
 	}
 
 	status_t CameraHal::freePreviewBufs()
@@ -2363,6 +2354,26 @@ fail_loop:
 		return NO_MEMORY;
 
 	}
+
+
+
+	CameraAdapter* CameraHal::CameraAdapter_Factory(size_t sensor_index)
+	{
+		LOG_FUNCTION_NAME;
+
+		CameraAdapter *adapter = NULL;
+		adapter = new V4LCameraAdapter();
+		if ( adapter ) {
+			LOGINFO("Camera adapter created, sensor_index %d",sensor_index);
+		} else {
+			LOGINFO("Camera adapter create failed!");
+		}
+
+		LOG_FUNCTION_NAME_EXIT;
+
+		return adapter;
+	}
+
 
 	bool CameraHal::isResolutionValid(unsigned int width, unsigned int height, const char *supportedResolutions)
 	{

@@ -81,7 +81,7 @@ protected:
     //-----------Interface that needs to be implemented by deriving classes --------------------
 
     //Should be implmented by deriving classes in order to start image capture
-    virtual status_t takePicture();
+    virtual status_t takePicture() = 0;
 
     //Should be implmented by deriving classes in order to start image capture
     virtual status_t stopImageCapture();
@@ -120,7 +120,7 @@ protected:
     virtual status_t useBuffers(CameraMode mode, void* bufArr, int num, size_t length, unsigned int queueable);
 
     //Should be implemented by deriving classes in order queue a released buffer in CameraAdapter
-    virtual status_t fillThisBuffer(void* frameBuf, CameraFrame::FrameType frameType);
+    virtual status_t queueBuffer(void* frameBuf, CameraFrame::FrameType frameType);
 
     //API to get the frame size required to be allocated. This size is used to override the size passed
     //by camera service when VSTAB/VNF is turned ON for example

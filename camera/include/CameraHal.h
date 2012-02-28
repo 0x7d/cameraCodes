@@ -1080,6 +1080,7 @@ private:
 
     //Check if a given resolution is supported by the current camera
     //instance
+    CameraAdapter* CameraAdapter_Factory(size_t sensor_index);
     bool isResolutionValid(unsigned int width, unsigned int height, const char *supportedResolutions);
 
     //Check if a given parameter is supported by the current camera

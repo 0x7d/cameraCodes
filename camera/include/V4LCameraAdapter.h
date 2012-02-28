@@ -87,7 +87,7 @@ protected:
     virtual status_t startPreview();
     virtual status_t stopPreview();
     virtual status_t useBuffers(CameraMode mode, void* bufArr, int num, size_t length, unsigned int queueable);
-    virtual status_t fillThisBuffer(void* frameBuf, CameraFrame::FrameType frameType);
+    virtual status_t queueBuffer(void* frameBuf, CameraFrame::FrameType frameType);
     virtual status_t getFrameSize(size_t &width, size_t &height);
     virtual status_t getPictureBufferSize(size_t &length, size_t bufferCount);
     virtual status_t getFrameDataSize(size_t &dataFrameSize, size_t bufferCount);
@@ -114,7 +114,7 @@ private:
     //Used for calculation of the average frame rate during preview
     status_t recalculateFPS();
 
-    char* getFrame(int &index);
+    char* dequeueBuffer(int &index);
     int previewThread();
 
 public:
@@ -152,6 +152,6 @@ private:
     int nDequeued;
 
 };
-}; //// namespace
+};
 #endif //V4L_CAMERA_ADAPTER_H
 

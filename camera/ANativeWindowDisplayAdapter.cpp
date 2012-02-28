@@ -497,9 +497,9 @@ namespace android {
 			LOG_FUNCTION_NAME_EXIT;
 			return NULL;
 		}
+		bytes = getBufSize(format, width, height);
 
 		mANativeWindow->get_min_undequeued_buffer_count(mANativeWindow, &undequeued);
-		bytes = getBufSize(format, width, height);
 		LOGINFO("mBufferCount %d, undequeued %d\n", mBufferCount, undequeued);
 
 		// lock the initial queueable buffers
@@ -512,7 +512,7 @@ namespace android {
 			buffer_handle_t* buf;
 			int stride;
 			void * y_uv = NULL;
-			
+
 			err = mANativeWindow->dequeue_buffer(mANativeWindow, &buf, &stride);
 
 			if (err != 0) {
@@ -526,19 +526,19 @@ namespace android {
 
 			mBufferHandleMap[i] = buf;
 
-			
-			mapper.lock((buffer_handle_t) *mBufferHandleMap[i], CAMHAL_GRALLOC_USAGE, bounds, &y_uv);
-			mapper.unlock((buffer_handle_t) *mBufferHandleMap[i]);
-			mGrallocHandleMap[i] = (IMG_native_handle_t*)y_uv;
-
 			//if(i < mBufferCount - undequeued){
+			if(true){
+				mapper.lock((buffer_handle_t) *mBufferHandleMap[i], CAMHAL_GRALLOC_USAGE, bounds, &y_uv);
+				mGrallocHandleMap[i] = (IMG_native_handle_t*)y_uv;
 				mANativeWindow->lock_buffer(mANativeWindow, mBufferHandleMap[i]);
 				mFramesWithCameraAdapterMap.add((int) mGrallocHandleMap[i], i);
-			//}
-			//else{
-				//mANativeWindow->cancel_buffer(mANativeWindow, mBufferHandleMap[i]);
-       	 		//mFramesWithCameraAdapterMap.removeItem((int) mGrallocHandleMap[i]);
-			//}
+				mFrameProvider->addFramePointers((void*)mGrallocHandleMap[i] , NULL);
+			}
+			else{
+				mANativeWindow->cancel_buffer(mANativeWindow, mBufferHandleMap[i]);
+				//mFramesWithCameraAdapterMap.removeItem((int) mGrallocHandleMap[i]);
+				mapper.unlock((buffer_handle_t) *mBufferHandleMap[i]);
+			}
 		}
 
 		mFirstInit = true;
@@ -624,19 +624,18 @@ fail:
 	status_t ANativeWindowDisplayAdapter::returnBuffersToWindow()
 	{
 		LOG_FUNCTION_NAME;
-		
+
 		status_t ret = NO_ERROR;
 		GraphicBufferMapper &mapper = GraphicBufferMapper::get();
 		//Give the buffers back to display here -  sort of free it
 		if (mANativeWindow){
-			for(unsigned int i = 0; i < mFramesWithCameraAdapterMap.size(); i++) {
-				int value = mFramesWithCameraAdapterMap.valueAt(i);
+			for(unsigned int i = 0; i < mBufferCount; i++) {
 
-				// unlock buffer before giving it up
-				mapper.unlock((buffer_handle_t) *mBufferHandleMap[value]);
-				
+				LOGE("returnBuffersToWindow i %d\n", i);
 
-				ret = mANativeWindow->cancel_buffer(mANativeWindow, mBufferHandleMap[value]);
+				mapper.unlock((buffer_handle_t) *mBufferHandleMap[i]);
+				ret = mANativeWindow->cancel_buffer(mANativeWindow, mBufferHandleMap[i]);
+
 				if ( ENODEV == ret ) {
 					LOGINFO("Preview surface abandoned!");
 					mANativeWindow = NULL;
@@ -794,16 +793,13 @@ end:
 			{
 				///Received a message from CameraHal, process it
 				shouldLive = processHalMsg();
-
 			}
-			else  if( !mDisplayQ.isEmpty())
+			else if( !mDisplayQ.isEmpty())
 			{
 				if ( mDisplayState== ANativeWindowDisplayAdapter::DISPLAY_INIT )
 				{
-
 					///If display adapter is not started, continue
 					continue;
-
 				}
 				else
 				{
@@ -838,73 +834,56 @@ end:
 
 	bool ANativeWindowDisplayAdapter::processHalMsg()
 	{
-		TIUTILS::Message msg;
-
 		LOG_FUNCTION_NAME;
 
-
+		TIUTILS::Message msg;
 		mDisplayThread->msgQ().get(&msg);
-		bool ret = true, invalidCommand = false;
 
+		bool ret = true, invalidCommand = false;
 		switch ( msg.command )
 		{
-
-		case DisplayThread::DISPLAY_START:
-
-			LOGINFO("Display thread received DISPLAY_START command from Camera HAL");
-			mDisplayState = ANativeWindowDisplayAdapter::DISPLAY_STARTED;
-
-			break;
-
-		case DisplayThread::DISPLAY_STOP:
-
-			///@bug There is no API to disable SF without destroying it
-			///@bug Buffers might still be w/ display and will get displayed
-			///@remarks Ideal seqyence should be something like this
-			///mOverlay->setParameter("enabled", false);
-			LOGINFO("Display thread received DISPLAY_STOP command from Camera HAL");
-			mDisplayState = ANativeWindowDisplayAdapter::DISPLAY_STOPPED;
-
-			break;
-
-		case DisplayThread::DISPLAY_EXIT:
-
-			LOGINFO("Display thread received DISPLAY_EXIT command from Camera HAL.");
-			LOGINFO("Stopping display thread...");
-			mDisplayState = ANativeWindowDisplayAdapter::DISPLAY_EXITED;
-			///Note that the SF can have pending buffers when we disable the display
-			///This is normal and the expectation is that they may not be displayed.
-			///This is to ensure that the user experience is not impacted
-			ret = false;
-			break;
-
-		default:
-
-			LOGINFO("Invalid Display Thread Command 0x%x.", msg.command);
-			invalidCommand = true;
-
-			break;
+			case DisplayThread::DISPLAY_START:
+				LOGINFO("Display thread received DISPLAY_START command from Camera HAL");
+				mDisplayState = ANativeWindowDisplayAdapter::DISPLAY_STARTED;
+				break;
+			case DisplayThread::DISPLAY_STOP:
+				///@bug There is no API to disable SF without destroying it
+				///@bug Buffers might still be w/ display and will get displayed
+				///@remarks Ideal seqyence should be something like this
+				///mOverlay->setParameter("enabled", false);
+				LOGINFO("Display thread received DISPLAY_STOP command from Camera HAL");
+				mDisplayState = ANativeWindowDisplayAdapter::DISPLAY_STOPPED;
+				break;
+			case DisplayThread::DISPLAY_EXIT:
+				LOGINFO("Display thread received DISPLAY_EXIT command from Camera HAL.");
+				LOGINFO("Stopping display thread...");
+				mDisplayState = ANativeWindowDisplayAdapter::DISPLAY_EXITED;
+				///Note that the SF can have pending buffers when we disable the display
+				///This is normal and the expectation is that they may not be displayed.
+				///This is to ensure that the user experience is not impacted
+				ret = false;
+				break;
+			default:
+				LOGINFO("Invalid Display Thread Command 0x%x.", msg.command);
+				invalidCommand = true;
+				break;
 		}
 
 		///Signal the semaphore if it is sent as part of the message
 		if ( ( msg.arg1 ) && ( !invalidCommand ) )
 		{
-
 			LOGINFO("+Signalling display semaphore");
 			Semaphore &sem = *((Semaphore*)msg.arg1);
-
 			sem.Signal();
-
 			LOGINFO("-Signalling display semaphore");
 		}
-
 
 		LOG_FUNCTION_NAME_EXIT;
 		return ret;
 	}
 
 	bool ANativeWindowDisplayAdapter::handleFrameReturn() {
-		LOG_FUNCTION_NAME_EXIT;
+		LOG_FUNCTION_NAME;
 
 		status_t err;
 		buffer_handle_t* buf;
@@ -929,13 +908,6 @@ end:
 			return false;
 		}
 
-		for (i = 0; i < mBufferCount; i++) {
-			if (mBufferHandleMap[i] == buf)
-				break;
-		}
-
-		LOGINFO("HandleFrameReturn mBufferCount %d, index %d\n", mBufferCount, i);
-
 		err = mANativeWindow->lock_buffer(mANativeWindow, buf);
 		if (err != 0) {
 			LOGINFO("lockbuffer failed: %s (%d)", strerror(-err), -err);
@@ -946,6 +918,17 @@ end:
 			}
 
 			return false;
+		}
+
+		for (i = 0; i < mBufferCount; i++) {
+			if (mBufferHandleMap[i] == buf)
+				break;
+		}
+		LOGINFO("HandleFrameReturn index %d\n", i);
+
+		if(i >= mBufferCount){
+			LOGINFO("Error!! index >= mBufferCount!\n");
+			return -EINVAL;
 		}
 
 		// lock buffer before sending to FrameProvider for filling
@@ -969,9 +952,12 @@ end:
 
 		mGrallocHandleMap[i] = (IMG_native_handle_t*)y_uv;
 		mFramesWithCameraAdapterMap.add((int) mGrallocHandleMap[i], i);
+		mFrameProvider->returnFrame( (void*)mGrallocHandleMap[i], CameraFrame::PREVIEW_FRAME_SYNC);
 
 		LOGINFO("handleFrameReturn: found graphic buffer %d of %d", i,
 				mBufferCount - 1);
+
+		LOG_FUNCTION_NAME_EXIT;
 		return true;
 	}
 
@@ -998,14 +984,15 @@ end:
 				break;
 			}
 		}
-		LOGINFO("postFrame mBufferCount %d, index %d\n", mBufferCount, index);
+		
+		LOGINFO("postFrame index %d\n", index);
 		if(index >= mBufferCount){
 			LOGINFO("Error!! index >= mBufferCount!\n");
 			return -EINVAL;
 		}
 
 		// unlock buffer before sending to display
-		// mapper.unlock((buffer_handle_t) mGrallocHandleMap[index]);
+		mapper.unlock((buffer_handle_t) *mBufferHandleMap[index]);
 		ret = mANativeWindow->enqueue_buffer(mANativeWindow,
 				mBufferHandleMap[index]);
 		if (ret != 0) {
@@ -1014,7 +1001,9 @@ end:
 
 		mFramesWithCameraAdapterMap.removeItem((int) dispFrame.mBuffer);
 
-		handleFrameReturn();
+		TIUTILS::Message msg;
+		mDisplayQ.put(&msg);
+
 		ret = NO_ERROR;
 		LOG_FUNCTION_NAME_EXIT;
 

@@ -19,7 +19,7 @@ CAMERA_COMMON_SRC:= \
 	BaseCameraAdapter.cpp \
 
 CAMERA_USB_SRC:= \
-	V4LCameraAdapter/V4LCameraAdapter.cpp
+	V4LCameraAdapter.cpp
 
 
 LOCAL_SRC_FILES:= \
@@ -29,10 +29,9 @@ LOCAL_SRC_FILES:= \
 
 LOCAL_C_INCLUDES += \
     $(LOCAL_PATH)/include \
-    $(LOCAL_PATH)/include/V4LCameraAdapter \
     hardware/ti/omap4xxx/include \
     hardware/ti/omap4xxx/libtiutils \
-	hardware/ti/omap4xxx/hwc \
+    hardware/ti/omap4xxx/hwc \
     hardware/ti/omap4xxx/tiler \
     hardware/ti/omap4xxx/ion \
     hardware/ti/omap4xxx/domx/omx_core/inc \
@@ -56,7 +55,7 @@ LOCAL_SHARED_LIBRARIES:= \
     libjpeg \
     libexif \
 
-LOCAL_CFLAGS := -fno-short-enums -DCOPY_IMAGE_BUFFER
+LOCAL_CFLAGS := -fno-short-enums
 
 LOCAL_MODULE_PATH := $(TARGET_OUT_SHARED_LIBRARIES)/hw
 LOCAL_MODULE:= camera.mv88de3100

@@ -39,22 +39,18 @@
 
 #include <cutils/properties.h>
 #define UNLIKELY( exp ) (__builtin_expect( (exp) != 0, false ))
-static int mDebugFps = 0;
-
-#define Q16_OFFSET 16
 
 #define HERE(Msg) {LOGINFO("--===line %d, %s===--\n", __LINE__, Msg);}
 
 namespace android {
 
-	///Maintain a separate tag for V4LCameraAdapter logs to isolate issues OMX specific
-#undef LOG_TAG
+///Maintain a separate tag for V4LCameraAdapter logs
+#undef  LOG_TAG
 #define LOG_TAG "V4LCameraAdapter"
 
 	//frames skipped before recalculating the framerate
 #define FPS_PERIOD 30
 
-	Mutex gAdapterLock;
 	const char *device = DEVICE;
 
 	V4LCameraAdapter::V4LCameraAdapter()
@@ -89,8 +85,6 @@ namespace android {
 
 		char value[PROPERTY_VALUE_MAX];
 		property_get("debug.camera.showfps", value, "0");
-		mDebugFps = atoi(value);
-		LOGINFO("initialize mDebugFps %d\n", mDebugFps);
 
 		int ret = NO_ERROR;
 
@@ -134,38 +128,6 @@ namespace android {
 		LOG_FUNCTION_NAME_EXIT;
 
 		return ret;
-	}
-
-	status_t V4LCameraAdapter::fillThisBuffer(void* frameBuf, CameraFrame::FrameType frameType)
-	{
-
-		status_t ret = NO_ERROR;
-
-		if ( !mVideoInfo->isStreaming )
-		{
-			return NO_ERROR;
-		}
-
-		int i = mPreviewBufs.valueFor(( unsigned int )frameBuf);
-		if(i<0)
-		{
-			return BAD_VALUE;
-		}
-
-		mVideoInfo->buf.index = i;
-		mVideoInfo->buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-		mVideoInfo->buf.memory = V4L2_MEMORY_MMAP;
-
-		ret = ioctl(mCameraHandle, VIDIOC_QBUF, &mVideoInfo->buf);
-		if (ret < 0) {
-			LOGINFO("Init: VIDIOC_QBUF Failed");
-			return -1;
-		}
-
-		nQueued++;
-
-		return ret;
-
 	}
 
 	status_t V4LCameraAdapter::setParameters(const CameraParameters &params)
@@ -314,8 +276,12 @@ namespace android {
 
 		status_t ret = NO_ERROR;
 		LOGINFO("takePicture mBufferIndex %d", mBufferIndex);
-		char *src = (char *)mVideoInfo->mem[mBufferIndex];
-		
+
+		char *src = this->dequeueBuffer(mBufferIndex);
+		if(!src){
+			return BAD_VALUE;
+		}
+			
 		int width = mVideoInfo->width;
 		int height = mVideoInfo->height;
 		int bufferSize = width * height * 2;
@@ -440,26 +406,6 @@ namespace android {
 		return ret;
 	}
 
-	char* V4LCameraAdapter::getFrame(int &index)
-	{
-		int ret;
-
-		mVideoInfo->buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-		mVideoInfo->buf.memory = V4L2_MEMORY_MMAP;
-
-		/* DQ */
-		ret = ioctl(mCameraHandle, VIDIOC_DQBUF, &mVideoInfo->buf);
-		if (ret < 0) {
-			LOGINFO("getFrame: VIDIOC_DQBUF Failed");
-			return NULL;
-		}
-		nDequeued++;
-
-		index = mVideoInfo->buf.index;
-
-		return (char *)mVideoInfo->mem[mVideoInfo->buf.index];
-	}
-
 	//API to get the frame size required to be allocated. This size is used to override the size passed
 	//by camera service when VSTAB/VNF is turned ON for example
 	status_t V4LCameraAdapter::getFrameSize(size_t &width, size_t &height)
@@ -525,6 +471,58 @@ namespace android {
 		LOG_FUNCTION_NAME_EXIT;
 	}
 
+	status_t V4LCameraAdapter::queueBuffer(void* frameBuf, CameraFrame::FrameType frameType)
+	{
+		LOG_FUNCTION_NAME;
+
+		status_t ret = NO_ERROR;
+
+		if ( !mVideoInfo->isStreaming )
+		{
+			return NO_ERROR;
+		}
+
+		int i = mPreviewBufs.valueFor(( unsigned int )frameBuf);
+		if(i<0)
+		{
+			return BAD_VALUE;
+		}
+
+		mVideoInfo->buf.index = i;
+		mVideoInfo->buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+		mVideoInfo->buf.memory = V4L2_MEMORY_MMAP;
+
+		ret = ioctl(mCameraHandle, VIDIOC_QBUF, &mVideoInfo->buf);
+		if (ret < 0) {
+			LOGINFO("Init: VIDIOC_QBUF Failed");
+			return -1;
+		}
+		LOGE("VIDIOC_QBUF nQueued %d\n", nQueued);
+		nQueued++;
+		LOG_FUNCTION_NAME_EXIT;
+		return ret;
+
+	}
+
+	char* V4LCameraAdapter::dequeueBuffer(int &index)
+	{
+		int ret;
+
+		mVideoInfo->buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+		mVideoInfo->buf.memory = V4L2_MEMORY_MMAP;
+
+		ret = ioctl(mCameraHandle, VIDIOC_DQBUF, &mVideoInfo->buf);
+		if (ret < 0) {
+			LOGINFO("VIDIOC_DQBUF Failed %s", strerror(errno));
+			return NULL;
+		}
+		nDequeued++;
+
+		index = mVideoInfo->buf.index;
+
+		return (char *)mVideoInfo->mem[index];
+	}
+
 	int V4LCameraAdapter::previewThread()
 	{
 		status_t ret = NO_ERROR;
@@ -533,17 +531,18 @@ namespace android {
 
 		if (mPreviewing)
 		{
-			int index = 0;
-			char *fp = this->getFrame(mBufferIndex);
-			if(!fp)
+			char *fp = this->dequeueBuffer(mBufferIndex);
+			if(!fp){
+				usleep(25000);
 				return BAD_VALUE;
+			}
+			LOGINFO("current preview buffer index %d\n", mBufferIndex);
 
 			int width, height;
 			mParams.getPreviewSize(&width, &height);
 			LOGINFO("preview size, width %d,height %d\n", width, height);
 
 			char *ptr = (char*) mPreviewBufs.keyAt(mBufferIndex);
-			LOGINFO("current preview buffer %x\n", ptr);	        
 			memcpy(ptr, fp, width * height * 2);
 
 			frame.mFrameType = CameraFrame::PREVIEW_FRAME_SYNC;
@@ -558,80 +557,7 @@ namespace android {
 			ret = sendFrameToSubscribers(&frame);
 			if(ret < 0)
 				LOGINFO("Failed to send frame to subscribers!\n");
-
-			ret = ioctl(mCameraHandle, VIDIOC_QBUF, &mVideoInfo->buf);
-			if (ret < 0) {
-				LOGINFO("previewThread VIDIOC_QBUF Failed");
-				return -1;
-			}
 		}
 		return ret;
 	}
-	
-	static void debugShowFPS()
-	{
-		static int mFrameCount = 0;
-		static int mLastFrameCount = 0;
-		static nsecs_t mLastFpsTime = 0;
-		static float mFps = 0;
-		mFrameCount++;
-		if (!(mFrameCount & 0x1F)) {
-			nsecs_t now = systemTime();
-			nsecs_t diff = now - mLastFpsTime;
-			mFps = ((mFrameCount - mLastFrameCount) * float(s2ns(1))) / diff;
-			mLastFpsTime = now;
-			mLastFrameCount = mFrameCount;
-			LOGD("Camera %d Frames, %f FPS", mFrameCount, mFps);
-		}
-		// XXX: mFPS has the value we want
-	}
-
-	extern "C" CameraAdapter* CameraAdapter_Factory(size_t sensor_index)
-	{
-		CameraAdapter *adapter = NULL;
-		Mutex::Autolock lock(gAdapterLock);
-
-		LOG_FUNCTION_NAME;
-
-		adapter = new V4LCameraAdapter();
-		if ( adapter ) {
-			LOGINFO("New OMX Camera adapter instance created for sensor %d",sensor_index);
-		} else {
-			LOGINFO("Camera adapter create failed!");
-		}
-
-		LOG_FUNCTION_NAME_EXIT;
-
-		return adapter;
-	}
-
-	extern "C" int CameraAdapter_Capabilities(CameraProperties::Properties* properties_array,
-			const unsigned int starting_camera,
-			const unsigned int max_camera) {
-		int num_cameras_supported = 0;
-		CameraProperties::Properties* properties = NULL;
-
-		LOG_FUNCTION_NAME;
-
-		if(!properties_array)
-		{
-			return -EINVAL;
-		}
-
-		// TODO: Need to tell camera properties what other cameras we can support
-		if (starting_camera + num_cameras_supported < max_camera) {
-			num_cameras_supported++;
-			properties = properties_array + starting_camera;
-			properties->set(CameraProperties::CAMERA_NAME, "USBCamera");
-		}
-
-		LOG_FUNCTION_NAME_EXIT;
-
-		return num_cameras_supported;
-	}
-
 };
-
-
-/*--------------------Camera Adapter Class ENDS here-----------------------------*/
-

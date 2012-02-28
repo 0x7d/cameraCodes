@@ -211,18 +211,14 @@ namespace android {
 
 	void BaseCameraAdapter::addFramePointers(void *frameBuf, void *buf)
 	{
-		unsigned int *pBuf = (unsigned int *)buf;
 		Mutex::Autolock lock(mSubscriberLock);
 
-		if ((frameBuf != NULL) && ( pBuf != NULL) )
+		if (frameBuf != NULL)
 		{
 			CameraFrame *frame = new CameraFrame;
 			frame->mBuffer = frameBuf;
-			frame->mYuv[0] = pBuf[0];
-			frame->mYuv[1] = pBuf[1];
 			mFrameQueue.add(frameBuf, frame);
-
-			LOGINFO("Adding Frame=0x%x Y=0x%x UV=0x%x", frame->mBuffer, frame->mYuv[0], frame->mYuv[1]);
+			LOGINFO("Adding Frame=0x%x", frame->mBuffer);
 		}
 	}
 
@@ -243,7 +239,6 @@ namespace android {
 
 	void BaseCameraAdapter::returnFrame(void* frameBuf, CameraFrame::FrameType frameType)
 	{
-		status_t res = NO_ERROR;
 		size_t subscriberCount = 0;
 		int refCount = -1;
 
@@ -255,63 +250,39 @@ namespace android {
 			return;
 		}
 
-		if ( NO_ERROR == res)
+
+		refCount = getFrameRefCount(frameBuf,  frameType);
+
+		if(frameType == CameraFrame::PREVIEW_FRAME_SYNC)
 		{
-
-			refCount = getFrameRefCount(frameBuf,  frameType);
-
-			if(frameType == CameraFrame::PREVIEW_FRAME_SYNC)
-			{
-				mFramesWithDisplay--;
-			}
-			else if(frameType == CameraFrame::VIDEO_FRAME_SYNC)
-			{
-				mFramesWithEncoder--;
-			}
-
-			if ( 0 < refCount )
-			{
-
-				refCount--;
-				setFrameRefCount(frameBuf, frameType, refCount);
-
-
-				if ( mRecording && (CameraFrame::VIDEO_FRAME_SYNC == frameType) ) {
-					refCount += getFrameRefCount(frameBuf, CameraFrame::PREVIEW_FRAME_SYNC);
-				} else if ( mRecording && (CameraFrame::PREVIEW_FRAME_SYNC == frameType) ) {
-					refCount += getFrameRefCount(frameBuf, CameraFrame::VIDEO_FRAME_SYNC);
-				} else if ( mRecording && (CameraFrame::SNAPSHOT_FRAME == frameType) ) {
-					refCount += getFrameRefCount(frameBuf, CameraFrame::VIDEO_FRAME_SYNC);
-				}
-
-
-			}
-			else
-			{
-				LOGINFO("Frame returned when ref count is already zero!!");
-				return;
-			}
+			mFramesWithDisplay--;
 		}
-
+		else if(frameType == CameraFrame::VIDEO_FRAME_SYNC)
+		{
+			mFramesWithEncoder--;
+		}
+		
 		LOGINFO("REFCOUNT 0x%x %d", frameBuf, refCount);
 
-		if ( NO_ERROR == res )
+		if ( 0 < refCount )
 		{
-			//check if someone is holding this buffer
-			if ( 0 == refCount )
-			{
-#ifdef DEBUG_LOG
-				if(mBuffersWithDucati.indexOfKey((int)frameBuf)>=0)
-				{
-					LOGINFO("Buffer already with Ducati!! 0x%x", frameBuf);
-					for(int i=0;i<mBuffersWithDucati.size();i++) LOGINFO("0x%x", mBuffersWithDucati.keyAt(i));
-				}
-				mBuffersWithDucati.add((int)frameBuf,1);
-#endif
-				res = fillThisBuffer(frameBuf, frameType);
+			refCount--;
+			setFrameRefCount(frameBuf, frameType, refCount);
+			if ( mRecording && (CameraFrame::VIDEO_FRAME_SYNC == frameType) ) {
+				refCount += getFrameRefCount(frameBuf, CameraFrame::PREVIEW_FRAME_SYNC);
+			} else if ( mRecording && (CameraFrame::PREVIEW_FRAME_SYNC == frameType) ) {
+				refCount += getFrameRefCount(frameBuf, CameraFrame::VIDEO_FRAME_SYNC);
+			} else if ( mRecording && (CameraFrame::SNAPSHOT_FRAME == frameType) ) {
+				refCount += getFrameRefCount(frameBuf, CameraFrame::VIDEO_FRAME_SYNC);
 			}
 		}
+		else
+		{
+			LOGINFO("Frame returned when ref count is already zero!!");
+			//return;
+		}
 
+		queueBuffer(frameBuf, frameType);
 	}
 
 	status_t BaseCameraAdapter::sendCommand(CameraCommands operation, int value1, int value2, int value3)
@@ -1504,7 +1475,7 @@ EXIT:
 		return ret;
 	}
 
-	status_t BaseCameraAdapter::fillThisBuffer(void* frameBuf, CameraFrame::FrameType frameType)
+	status_t BaseCameraAdapter::queueBuffer(void* frameBuf, CameraFrame::FrameType frameType)
 	{
 		status_t ret = NO_ERROR;
 
